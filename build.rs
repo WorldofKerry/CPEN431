@@ -6,8 +6,8 @@ fn main() {
         .includes(["src/protos"])
         // Inputs must reside in some of include paths.
         .input("src/protos/Message.proto")
-        .input("src/protos/RequestPayload.proto")
-        .input("src/protos/ResponsePayload.proto")
+        .input("src/protos/KeyValueRequest.proto")
+        .input("src/protos/KeyValueResponse.proto")
         // Specify output directory relative to Cargo output directory.
         .cargo_out_dir("protos")
         .run_from_script();

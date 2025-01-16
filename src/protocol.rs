@@ -1,6 +1,4 @@
 pub use crate::protos::Message::Msg;
-use protobuf::Message;
-use crate::protos::RequestPayload::ReqPayload;
 
 pub type MessageID = [u8; 16];
 
@@ -12,12 +10,11 @@ fn checksum(message_id: &[u8], payload: &[u8]) -> u64 {
 }
 
 pub trait Payload {
-    fn from_request(message_id: MessageID, payload: ReqPayload) -> Self;
+    fn from_request(message_id: MessageID, payload: Vec<u8>) -> Self;
 }
 
 impl Payload for Msg {
-    fn from_request(message_id: MessageID, payload: ReqPayload) -> Self {
-        let payload = payload.write_to_bytes().unwrap();
+    fn from_request(message_id: MessageID, payload: Vec<u8>) -> Self {
         let checksum = checksum(&message_id, &payload);
         Msg {
             messageID: message_id.to_vec(),
