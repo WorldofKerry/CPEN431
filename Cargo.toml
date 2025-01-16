@@ -5,6 +5,7 @@ edition = "2021"
 
 [build-dependencies]
 protobuf-codegen = "3.7.1"
+protoc-bin-vendored = "3.1.0"
 
 [dependencies]
 clap = { version = "4.5.26", features = ["derive"] }
@@ -12,5 +13,4 @@ crc32fast = "1.4.2"
 hex = "0.4.3"
 local-ip-address = "0.6.3"
 protobuf = "3.7.1"
-protoc-bin-vendored = "3.1.0"
 rand = "0.8.5"

@@ -10,7 +10,7 @@ fn get_secret_code(server_ip: Ipv4Addr, student_id: u32, port: u16) -> Option<Ve
     let message_id = random_message_id(port);
     let request = Msg::from_student_id(message_id, student_id).write_to_bytes().unwrap();
 
-    let socket = std::net::UdpSocket::bind("0.0.0.0:34254").unwrap();
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
     socket.set_read_timeout(Some(default_timeout)).unwrap();
 
     eprintln!("Request: {}", hex::encode(&request));
