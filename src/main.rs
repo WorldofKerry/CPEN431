@@ -1,6 +1,6 @@
-use std::{default, net::Ipv4Addr, str::FromStr};
+use std::net::Ipv4Addr;
 use clap::Parser;
-use cpen431::{application::{random_message_id, ReqPayload, Request, Response}, protocol::{Msg, Payload}};
+use cpen431::{application::{random_message_id, Request, Response}, protocol::Msg};
 use protobuf::Message;
 
 fn get_secret_code(server_ip: Ipv4Addr, student_id: u32, port: u16) -> Option<Vec<u8>> {
@@ -56,6 +56,8 @@ fn main() {
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
     use super::*;
     #[test]
     fn test() {

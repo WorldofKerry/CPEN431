@@ -1,7 +1,7 @@
 use crate::{protocol::{MessageID, Msg, Payload}, protos::ResponsePayload::ResPayload};
 pub use crate::protos::RequestPayload::ReqPayload;
 use protobuf::Message;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::IpAddr;
 
 pub fn random_message_id(port: u16) -> MessageID {
     let mut message_id: MessageID = [0; 16];
