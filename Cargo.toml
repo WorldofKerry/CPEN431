@@ -8,5 +8,6 @@ protobuf-codegen = "3.7.1"
 
 [dependencies]
 crc32fast = "1.4.2"
+local-ip-address = "0.6.3"
 protobuf = "3.7.1"
 rand = "0.8.5"

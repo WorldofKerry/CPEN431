@@ -1,20 +1,8 @@
-use crate::protos::{Message::Msg, RequestPayload::ReqPayload};
+pub use crate::protos::Message::Msg;
 use protobuf::Message;
+use crate::protos::RequestPayload::ReqPayload;
 
-fn random_message_id() -> Vec<u8> {
-    let mut buf = Vec::with_capacity(16);
-    buf.extend_from_slice(&std::net::Ipv4Addr::LOCALHOST.octets());
-    buf.extend_from_slice(&0u16.to_be_bytes());
-    buf.extend_from_slice(&rand::random::<u16>().to_be_bytes());
-    buf.extend_from_slice(
-        &std::time::SystemTime::now()
-            .elapsed()
-            .unwrap()
-            .as_nanos()
-            .to_be_bytes(),
-    );
-    buf
-}
+pub type MessageID = [u8; 16];
 
 fn checksum(message_id: &[u8], payload: &[u8]) -> u64 {
     let mut hasher = crc32fast::Hasher::new();
@@ -23,13 +11,20 @@ fn checksum(message_id: &[u8], payload: &[u8]) -> u64 {
     hasher.finalize() as u64
 }
 
-pub fn wrap_payload(message_id: Vec<u8>, payload: Vec<u8>) -> Msg {
-    let checksum = checksum(&message_id, &payload);
-    Msg {
-        messageID: message_id,
-        payload,
-        checkSum: checksum,
-        special_fields: Default::default(),
+pub trait Payload {
+    fn from_request(message_id: MessageID, payload: ReqPayload) -> Self;
+}
+
+impl Payload for Msg {
+    fn from_request(message_id: MessageID, payload: ReqPayload) -> Self {
+        let payload = payload.write_to_bytes().unwrap();
+        let checksum = checksum(&message_id, &payload);
+        Msg {
+            messageID: message_id.to_vec(),
+            payload,
+            checkSum: checksum,
+            special_fields: Default::default(),
+        }
     }
 }
 
