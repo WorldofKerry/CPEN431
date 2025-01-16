@@ -33,6 +33,7 @@ mod test {
     use super::*;
     #[test]
     fn test_checksum() {
+        // Example on Google Doc
         let message_id = vec![1, 2, 3, 4];
         let payload = vec![5, 6, 7, 8];
         assert_eq!(checksum(&message_id, &payload), 1070237893);

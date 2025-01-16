@@ -57,6 +57,6 @@ mod test {
     #[test]
     fn test_msg() {
         let message_id = random_message_id(34254);
-        let request = Msg::from_student_id(message_id, 123456);
+        let _request = Msg::from_student_id(message_id, 123456);
     }
 }
