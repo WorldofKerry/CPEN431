@@ -34,7 +34,7 @@ impl Protocol for Msg {
         let msg = Msg::parse_from_bytes(bytes)?;
         match msg.checkSum == checksum(&msg.messageID, &msg.payload) {
             true => Ok(msg),
-            false => Err(crate::application::ApplicationError::InvalidChecksum.into()),
+            false => Err(crate::application::ApplicationError::InvalidChecksum),
         }
     }
 }
