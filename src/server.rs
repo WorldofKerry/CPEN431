@@ -1,6 +1,5 @@
 use std::{collections::HashMap, io, net::Ipv4Addr};
-use clap::Parser;
-use crate::{application::{Command, Deserialize, Request, Response, Serialize, Result}, protocol::{Msg, Protocol}};
+use crate::{application::{Command, Deserialize, Request, Response, Serialize}, protocol::{Msg, Protocol}};
 use tokio::net::UdpSocket;
 
 pub struct Server {

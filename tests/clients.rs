@@ -1,6 +1,5 @@
 use std::{net::Ipv4Addr, process::Command};
 
-use cpen431::server::Server;
 
 fn parse_servers_list() -> Vec<(Ipv4Addr, u16)> {
     let servers_list = include_str!("../servers_list.txt");
