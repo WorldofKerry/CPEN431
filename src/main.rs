@@ -1,7 +1,8 @@
 use std::{collections::HashMap, io, net::Ipv4Addr};
 use clap::Parser;
-use cpen431::{application::{Command, Deserialize, Request, Response, Serialize}, protocol::Msg};
+use cpen431::{application::{Command, Deserialize, Request, Response, Serialize}, protocol::{Msg, Protocol}};
 use tokio::net::UdpSocket;
+use anyhow::Result;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -34,16 +35,66 @@ impl Server {
     }
 
     fn handle_request(&mut self, request: Request) -> Response {
-        match request.command {
-            Command::IsAlive => Response::success(),
-            Command::Wipeout => {
+        match request {
+            Request {
+                command: Command::IsAlive,
+                ..
+            } => Response::success(),
+            Request {
+                command: Command::Wipeout,
+                ..
+            } => {
                 self.kv_data.clear();
                 Response::success()
             },
+            Request {
+                command: Command::Put,
+                key: Some(key),
+                value: Some(value),
+                ..
+            } => {
+                self.kv_data.insert(key, value);
+                Response::success()
+            },
+            Request {
+                command: Command::Get,
+                key: Some(key),
+                ..
+            } => {
+                let value = self.kv_data.get(&key).cloned();
+                Response {
+                    err_code: if value.is_some() { 0 } else { 1 },
+                    value,
+                    ..Default::default()
+                }
+            },
+            Request {
+                command: Command::Remove,
+                key: Some(key),
+                ..
+            } => {
+                let value = self.kv_data.remove(&key);
+                Response {
+                    err_code: if value.is_some() { 0 } else { 1 },
+                    value,
+                    ..Default::default()
+                }
+            }
             _ => {
                 panic!("Unsupported command: {:?}", request.command);
             }
         }
+    }
+
+    pub fn handle_recv(&mut self, buf: &[u8]) -> Result<Vec<u8>> {
+        let msg = Msg::from_bytes(buf)?;
+        let req = msg.payload()?;
+        let id = msg.message_id();
+    
+        println!("{:?}", req);
+
+        let response = self.handle_request(req);
+        Ok(response.to_bytes(id))
     }
 
     pub async fn run(&mut self) -> io::Result<()> {
@@ -52,16 +103,15 @@ impl Server {
         let mut buf = [0; 1024];
         loop {
             let (len, addr) = sock.recv_from(&mut buf).await?;
-            println!("{:?} bytes received from {:?}", len, addr);
 
-            let req_msg = Msg::from_bytes(&buf[..len]);
-            let request = req_msg.payload();
-            let message_id = req_msg.message_id();
-            println!("{:?}", request);
-
-            let response = self.handle_request(request);
-            let rsp_msg = response.to_bytes(message_id);
-            sock.send_to(&rsp_msg, addr).await?;
+            match self.handle_recv(&buf[..len]) {
+                Ok(response) => {
+                    sock.send_to(&response, addr).await?;
+                }
+                Err(e) => {
+                    eprintln!("Error: {:?}", e);
+                }
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ use crate::{
     protocol::{MessageID, Msg, Protocol},
     protos::KeyValueResponse::KVResponse,
 };
+use anyhow::Result;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use protobuf::Message;
@@ -28,8 +29,7 @@ pub fn random_message_id(port: u16) -> MessageID {
     message_id
 }
 
-#[derive(FromPrimitive)]
-#[derive(Debug)]
+#[derive(FromPrimitive, Debug)]
 pub enum Command {
     Put = 0x01,
     Get = 0x02,
@@ -49,7 +49,6 @@ pub struct Request {
     pub value: Option<Vec<u8>>,
     pub version: Option<i32>,
 }
-
 
 #[derive(Debug, Default)]
 pub struct Response {
@@ -84,29 +83,27 @@ impl Serialize for Response {
             membershipCount: self.membership_count,
             special_fields: Default::default(),
         };
-        Msg::from_request(message_id, kvresponse.write_to_bytes().unwrap()).write_to_bytes().unwrap()
+        Msg::from_request(message_id, kvresponse.write_to_bytes().unwrap())
+            .write_to_bytes()
+            .unwrap()
     }
 }
 
 pub trait Deserialize {
-    fn from_bytes(response: &[u8]) -> Self;
-    fn payload(&self) -> Request;
+    fn payload(&self) -> Result<Request>;
     fn message_id(&self) -> MessageID;
 }
 
 impl Deserialize for Msg {
-    fn from_bytes(response: &[u8]) -> Self {
-        Msg::parse_from_bytes(response).unwrap()
-    }
-
-    fn payload(&self) -> Request {
-        let kvrequest = KVRequest::parse_from_bytes(&self.payload).unwrap();
-        Request {
-            command: Command::from_u32(kvrequest.command).unwrap(),
+    fn payload(&self) -> Result<Request> {
+        let kvrequest = KVRequest::parse_from_bytes(&self.payload)?;
+        let command = Command::from_u32(kvrequest.command).ok_or(anyhow::anyhow!("Invalid command {:?}", kvrequest.command))?;
+        Ok(Request {
+            command,
             key: kvrequest.key,
             value: kvrequest.value,
             version: kvrequest.version,
-        }
+        })
     }
 
     fn message_id(&self) -> MessageID {

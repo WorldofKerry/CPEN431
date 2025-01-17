@@ -1,5 +1,6 @@
 pub use crate::protos::Message::Msg;
-
+use anyhow::Result;
+use protobuf::Message;
 pub type MessageID = [u8; 16];
 
 fn checksum(message_id: &[u8], payload: &[u8]) -> u64 {
@@ -11,6 +12,13 @@ fn checksum(message_id: &[u8], payload: &[u8]) -> u64 {
 
 pub trait Protocol {
     fn from_request(message_id: MessageID, payload: Vec<u8>) -> Self;
+    fn from_bytes(bytes: &[u8]) -> Result<Msg> {
+        let msg = Msg::parse_from_bytes(bytes)?;
+        match msg.checkSum == checksum(&msg.messageID, &msg.payload) {
+            true => Ok(msg),
+            false => Err(anyhow::anyhow!("Checksum failed")),
+        }
+    }
 }
 
 impl Protocol for Msg {
