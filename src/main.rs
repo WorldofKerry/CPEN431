@@ -1,6 +1,6 @@
 use std::{io, net::Ipv4Addr};
 use clap::Parser;
-use cpen431::{application::{random_message_id, Request, Response}, protocol::Msg};
+use cpen431::{application::{random_message_id, Serialize, Deserialize}, protocol::Msg};
 use protobuf::Message;
 use tokio::net::UdpSocket;
 

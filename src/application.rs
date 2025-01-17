@@ -1,6 +1,6 @@
 pub use crate::protos::KeyValueRequest::KVRequest;
 use crate::{
-    protocol::{MessageID, Msg, Payload},
+    protocol::{MessageID, Msg, Protocol},
     protos::KeyValueResponse::KVResponse,
 };
 use protobuf::Message;
@@ -38,7 +38,7 @@ pub enum Command {
     GetMembershipList = 0x22,
 }
 
-pub trait Request {
+pub trait Serialize {
     fn from_components(
         message_id: MessageID,
         command: Command,
@@ -48,7 +48,7 @@ pub trait Request {
     ) -> Self;
 }
 
-impl Request for Msg {
+impl Serialize for Msg {
     fn from_components(
         message_id: MessageID,
         command: Command,
@@ -66,17 +66,18 @@ impl Request for Msg {
         Msg::from_request(message_id, payload.write_to_bytes().unwrap())
     }
 }
-pub trait Response {
+
+pub trait Deserialize {
     fn from_bytes(response: &[u8]) -> Self;
-    fn response(&self) -> KVResponse;
+    fn payload(&self) -> KVResponse;
 }
 
-impl Response for Msg {
+impl Deserialize for Msg {
     fn from_bytes(response: &[u8]) -> Self {
         Msg::parse_from_bytes(response).unwrap()
     }
 
-    fn response(&self) -> KVResponse {
+    fn payload(&self) -> KVResponse {
         KVResponse::parse_from_bytes(&self.payload).unwrap()
     }
 }

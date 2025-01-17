@@ -9,11 +9,11 @@ fn checksum(message_id: &[u8], payload: &[u8]) -> u64 {
     hasher.finalize() as u64
 }
 
-pub trait Payload {
+pub trait Protocol {
     fn from_request(message_id: MessageID, payload: Vec<u8>) -> Self;
 }
 
-impl Payload for Msg {
+impl Protocol for Msg {
     fn from_request(message_id: MessageID, payload: Vec<u8>) -> Self {
         let checksum = checksum(&message_id, &payload);
         Msg {
