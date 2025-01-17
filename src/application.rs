@@ -60,6 +60,15 @@ pub struct Response {
     pub overload_wait_time: Option<i32>,
     pub membership_count: Option<i32>,
 }
+
+impl Response {
+    pub fn success() -> Response {
+        Response {
+            err_code: 0,
+            ..Default::default()
+        }
+    }
+}
 pub trait Serialize {
     fn to_bytes(self, message_id: MessageID) -> Vec<u8>;
 }

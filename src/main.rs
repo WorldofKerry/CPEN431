@@ -34,11 +34,12 @@ impl Server {
         }
     }
 
-    fn handle_request(&self, request: Request) -> Response {
+    fn handle_request(&mut self, request: Request) -> Response {
         match request.command {
-            Command::IsAlive => Response { 
-                err_code: 0,
-                ..Default::default()
+            Command::IsAlive => Response::success(),
+            Command::Wipeout => {
+                self.kv_data.clear();
+                Response::success()
             },
             _ => {
                 eprintln!("Unsupported command: {:?}", request.command);
@@ -50,7 +51,7 @@ impl Server {
         }
     }
 
-    pub async fn run(&self) -> io::Result<()> {
+    pub async fn run(&mut self) -> io::Result<()> {
         let sock = UdpSocket::bind((self.ip, self.port)).await?;
         println!("Server listening on {}:{}", sock.local_addr().unwrap().ip(), sock.local_addr().unwrap().port());
         let mut buf = [0; 1024];
