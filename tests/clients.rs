@@ -19,6 +19,7 @@ fn check_log_file(path: impl AsRef<std::path::Path>) {
     let log = std::fs::read_to_string(path).unwrap();
     let log = log.to_lowercase();
     assert!(!log.contains("undecided"));
+    assert!(!log.contains("test_failed"));
 }
 
 #[test]
