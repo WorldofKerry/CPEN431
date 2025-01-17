@@ -1,67 +1,46 @@
-use std::net::Ipv4Addr;
+use std::{io, net::Ipv4Addr};
 use clap::Parser;
 use cpen431::{application::{random_message_id, Request, Response}, protocol::Msg};
 use protobuf::Message;
-
-fn ping_is_alive(server_ip: Ipv4Addr, student_id: u32, port: u16) -> Option<u32> {
-    let retries = 3;
-    let default_timeout = std::time::Duration::from_millis(100);
-
-    let message_id = random_message_id(port);
-    let request = Msg::from_components(message_id, cpen431::application::Command::IsAlive, None, None, None).write_to_bytes().unwrap();
-
-    let socket = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
-    socket.set_read_timeout(Some(default_timeout)).unwrap();
-
-    eprintln!("Request: {}", hex::encode(&request));
-    for retry in 0..=retries {
-        socket.send_to(&request, (server_ip, port)).unwrap();
-
-        let mut response_data = [0; 1024];
-        match socket.recv_from(&mut response_data) {
-            Ok((size, _)) => {
-                let response_data = &response_data[..size];
-                let response = Msg::from_bytes(response_data);
-                if response.messageID == message_id {
-                    let secret_key = response.response().errCode;
-                    return Some(secret_key);
-                } else {
-                    eprintln!("Invalid message ID");
-                }
-            }
-            Err(_) => {
-                eprintln!("Timeout")
-            }
-        }
-        socket.set_read_timeout(Some(default_timeout * (1 << retry))).unwrap();
-    }    
-    None
-}
+use tokio::net::UdpSocket;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    server_ip: Ipv4Addr,
+    #[arg(default_value = "0.0.0.0")]
+    ip: Ipv4Addr,
+    #[arg(default_value = "16401")]
     port: u16,
-    student_id: u32,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> io::Result<()> {
     let cli = Cli::parse();
-    let secret_code = ping_is_alive(cli.server_ip, cli.student_id, cli.port).unwrap();
-    println!("{}", secret_code);
+    run_server(cli.ip, cli.port).await
+}
+
+async fn run_server(ip: Ipv4Addr, port: u16) -> io::Result<()> {    
+    let sock = UdpSocket::bind((ip, port)).await?;
+    println!("Trying using debugger more instead of println");
+    println!("Server listening on {}:{}", sock.local_addr().unwrap().ip(), sock.local_addr().unwrap().port());
+    let mut buf = [0; 1024];
+    loop {
+        let (len, addr) = sock.recv_from(&mut buf).await?;
+        println!("{:?} bytes received from {:?}", len, addr);
+
+        let len = sock.send_to(&buf[..len], addr).await?;
+        println!("{:?} bytes sent", len);
+    }
 }
 
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
-
     use super::*;
-    #[test]
-    fn test() {
-        // Example on Google Doc
-        let student_id = 1381632;
-        let resp = ping_is_alive(Ipv4Addr::from_str("52.27.39.26").unwrap(), student_id, 43102).unwrap();
-        assert_eq!(resp, 0);
+
+    #[cfg(skip)]
+    #[tokio::test]
+    async fn test() {
+        let _ = run_server(Ipv4Addr::from_str("0.0.0.0").unwrap(), 16401).await;
     }
 }
