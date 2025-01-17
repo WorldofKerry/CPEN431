@@ -1,7 +1,6 @@
 use std::{collections::HashMap, io, net::Ipv4Addr};
 use clap::Parser;
-use cpen431::{application::{random_message_id, Command, Deserialize, Request, Response, Serialize}, protocol::Msg};
-use protobuf::Message;
+use cpen431::{application::{Command, Deserialize, Request, Response, Serialize}, protocol::Msg};
 use tokio::net::UdpSocket;
 
 #[derive(Parser)]
@@ -42,11 +41,7 @@ impl Server {
                 Response::success()
             },
             _ => {
-                eprintln!("Unsupported command: {:?}", request.command);
-                Response {
-                    err_code: 1,
-                    ..Default::default()
-                }
+                panic!("Unsupported command: {:?}", request.command);
             }
         }
     }
