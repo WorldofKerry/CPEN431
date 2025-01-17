@@ -28,6 +28,9 @@ async fn run_server(ip: Ipv4Addr, port: u16) -> io::Result<()> {
         let (len, addr) = sock.recv_from(&mut buf).await?;
         println!("{:?} bytes received from {:?}", len, addr);
 
+        let request = Msg::from_bytes(&buf[..len]).payload();
+        println!("{:?}", request);
+
         let len = sock.send_to(&buf[..len], addr).await?;
         println!("{:?} bytes sent", len);
     }

@@ -1,4 +1,4 @@
-pub use crate::protos::KeyValueRequest::KVRequest;
+use crate::protos::KeyValueRequest::KVRequest;
 use crate::{
     protocol::{MessageID, Msg, Protocol},
     protos::KeyValueResponse::KVResponse,
@@ -26,6 +26,7 @@ pub fn random_message_id(port: u16) -> MessageID {
     message_id
 }
 
+#[derive(Debug)]
 pub enum Command {
     Put = 0x01,
     Get = 0x02,
@@ -36,6 +37,31 @@ pub enum Command {
     GetPID = 0x07,
     GetMembershipCount = 0x08,
     GetMembershipList = 0x22,
+}
+
+impl From<u32> for Command {
+    fn from(value: u32) -> Self {
+        match value {
+            0x01 => Command::Put,
+            0x02 => Command::Get,
+            0x03 => Command::Remove,
+            0x04 => Command::Shutdown,
+            0x05 => Command::Wipeout,
+            0x06 => Command::IsAlive,
+            0x07 => Command::GetPID,
+            0x08 => Command::GetMembershipCount,
+            0x22 => Command::GetMembershipList,
+            _ => panic!("Invalid command"),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Request {
+    pub command: Command,
+    pub key: Option<Vec<u8>>,
+    pub value: Option<Vec<u8>>,
+    pub version: Option<i32>,
 }
 
 pub trait Serialize {
@@ -69,7 +95,7 @@ impl Serialize for Msg {
 
 pub trait Deserialize {
     fn from_bytes(response: &[u8]) -> Self;
-    fn payload(&self) -> KVResponse;
+    fn payload(&self) -> Request;
 }
 
 impl Deserialize for Msg {
@@ -77,8 +103,14 @@ impl Deserialize for Msg {
         Msg::parse_from_bytes(response).unwrap()
     }
 
-    fn payload(&self) -> KVResponse {
-        KVResponse::parse_from_bytes(&self.payload).unwrap()
+    fn payload(&self) -> Request {
+        let kvrequest = KVRequest::parse_from_bytes(&self.payload).unwrap();
+        Request {
+            command: Command::from(kvrequest.command),
+            key: kvrequest.key,
+            value: kvrequest.value,
+            version: kvrequest.version,
+        }
     }
 }
 
