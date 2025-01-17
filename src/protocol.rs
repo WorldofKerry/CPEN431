@@ -8,7 +8,7 @@ fn checksum(message_id: &[u8], payload: &[u8]) -> u64 {
     let mut hasher = crc32fast::Hasher::new();
     hasher.update(message_id);
     hasher.update(payload);
-    hasher.finalize() as u64
+    u64::from(hasher.finalize())
 }
 
 pub trait Protocol {

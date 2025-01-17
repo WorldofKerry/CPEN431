@@ -11,6 +11,7 @@ use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, ApplicationError>;
 
+#[must_use]
 pub fn random_message_id(port: u16) -> MessageID {
     let mut message_id: MessageID = [0; 16];
     let client_ip_first_four: [u8; 4] = match local_ip_address::local_ip().unwrap() {
