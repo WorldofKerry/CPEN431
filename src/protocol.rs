@@ -1,6 +1,7 @@
 pub use crate::protos::Message::Msg;
-use anyhow::Result;
 use protobuf::Message;
+use crate::application::Result;
+
 pub type MessageID = [u8; 16];
 
 fn checksum(message_id: &[u8], payload: &[u8]) -> u64 {
@@ -12,13 +13,8 @@ fn checksum(message_id: &[u8], payload: &[u8]) -> u64 {
 
 pub trait Protocol {
     fn from_request(message_id: MessageID, payload: Vec<u8>) -> Self;
-    fn from_bytes(bytes: &[u8]) -> Result<Msg> {
-        let msg = Msg::parse_from_bytes(bytes)?;
-        match msg.checkSum == checksum(&msg.messageID, &msg.payload) {
-            true => Ok(msg),
-            false => Err(anyhow::anyhow!("Checksum failed")),
-        }
-    }
+    fn to_bytes(&self) -> Vec<u8>;
+    fn from_bytes(bytes: &[u8]) -> Result<Self> where Self: Sized;
 }
 
 impl Protocol for Msg {
@@ -29,6 +25,16 @@ impl Protocol for Msg {
             payload,
             checkSum: checksum,
             special_fields: Default::default(),
+        }
+    }
+    fn to_bytes(&self) -> Vec<u8> {
+        self.write_to_bytes().unwrap()
+    }    
+    fn from_bytes(bytes: &[u8]) -> Result<Msg> {
+        let msg = Msg::parse_from_bytes(bytes)?;
+        match msg.checkSum == checksum(&msg.messageID, &msg.payload) {
+            true => Ok(msg),
+            false => Err(crate::application::ApplicationError::InvalidChecksum.into()),
         }
     }
 }

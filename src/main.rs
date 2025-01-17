@@ -1,8 +1,7 @@
 use std::{collections::HashMap, io, net::Ipv4Addr};
 use clap::Parser;
-use cpen431::{application::{Command, Deserialize, Request, Response, Serialize}, protocol::{Msg, Protocol}};
+use cpen431::{application::{Command, Deserialize, Request, Response, Serialize, Result}, protocol::{Msg, Protocol}};
 use tokio::net::UdpSocket;
-use anyhow::Result;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -86,15 +85,20 @@ impl Server {
         }
     }
 
-    pub fn handle_recv(&mut self, buf: &[u8]) -> Result<Vec<u8>> {
+    pub fn handle_recv(&mut self, buf: &[u8]) -> anyhow::Result<Msg> {
         let msg = Msg::from_bytes(buf)?;
-        let req = msg.payload()?;
-        let id = msg.message_id();
-    
-        println!("{:?}", req);
+        let message_id = msg.message_id();
 
-        let response = self.handle_request(req);
-        Ok(response.to_bytes(id))
+        match msg.payload() {
+            Ok(request) => {
+                println!("Received request: {:?}", request);
+                let response = self.handle_request(request);
+                Ok(response.to_msg(message_id))
+            }
+            Err(e) => {
+                Ok(Response::error(e.into()).to_msg(message_id))
+            }
+        }
     }
 
     pub async fn run(&mut self) -> io::Result<()> {
@@ -106,7 +110,7 @@ impl Server {
 
             match self.handle_recv(&buf[..len]) {
                 Ok(response) => {
-                    sock.send_to(&response, addr).await?;
+                    sock.send_to(&response.to_bytes(), addr).await?;
                 }
                 Err(e) => {
                     eprintln!("Error: {:?}", e);

@@ -3,11 +3,13 @@ use crate::{
     protocol::{MessageID, Msg, Protocol},
     protos::KeyValueResponse::KVResponse,
 };
-use anyhow::Result;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use protobuf::Message;
 use std::net::IpAddr;
+use thiserror::Error;
+
+pub type Result<T> = std::result::Result<T, ApplicationError>;
 
 pub fn random_message_id(port: u16) -> MessageID {
     let mut message_id: MessageID = [0; 16];
@@ -42,6 +44,40 @@ pub enum Command {
     GetMembershipList = 0x22,
 }
 
+#[derive(FromPrimitive, Debug)]
+pub enum ErrorCode {
+    Success = 0x00,
+    NonExistentKey = 0x01,
+    OutOfSpace = 0x02,
+    TemporarySystemOverload = 0x03,
+    InternalKVStoreFailure = 0x04,
+    UnrecognizedCommand = 0x05,
+    InvalidKey = 0x06,
+    InvalidValue = 0x07,
+    ProtobufError = 0x21,
+    InvalidChecksum = 0x22,
+}
+
+#[derive(Error, Debug)]
+pub enum ApplicationError {
+    #[error("Invalid command {0}")]
+    UnrecognizedCommand(u32),
+    #[error("Protobuf error: {0}")]
+    ProtobufError(#[from] protobuf::Error),
+    #[error("Invalid checksum")]
+    InvalidChecksum,
+}
+
+impl From<ApplicationError> for ErrorCode {
+    fn from(err: ApplicationError) -> Self {
+        match err {
+            ApplicationError::UnrecognizedCommand(_) => ErrorCode::UnrecognizedCommand,
+            ApplicationError::ProtobufError(_) => ErrorCode::ProtobufError,
+            ApplicationError::InvalidChecksum => ErrorCode::InvalidChecksum,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Request {
     pub command: Command,
@@ -67,13 +103,20 @@ impl Response {
             ..Default::default()
         }
     }
+
+    pub fn error(err_code: ErrorCode) -> Response {
+        Response {
+            err_code: err_code as u32,
+            ..Default::default()
+        }
+    }
 }
 pub trait Serialize {
-    fn to_bytes(self, message_id: MessageID) -> Vec<u8>;
+    fn to_msg(self, message_id: MessageID) -> Msg;
 }
 
 impl Serialize for Response {
-    fn to_bytes(self, message_id: MessageID) -> Vec<u8> {
+    fn to_msg(self, message_id: MessageID) -> Msg {
         let kvresponse = KVResponse {
             errCode: self.err_code,
             value: self.value,
@@ -84,8 +127,6 @@ impl Serialize for Response {
             special_fields: Default::default(),
         };
         Msg::from_request(message_id, kvresponse.write_to_bytes().unwrap())
-            .write_to_bytes()
-            .unwrap()
     }
 }
 
@@ -97,7 +138,8 @@ pub trait Deserialize {
 impl Deserialize for Msg {
     fn payload(&self) -> Result<Request> {
         let kvrequest = KVRequest::parse_from_bytes(&self.payload)?;
-        let command = Command::from_u32(kvrequest.command).ok_or(anyhow::anyhow!("Invalid command {:?}", kvrequest.command))?;
+        let command = Command::from_u32(kvrequest.command)
+            .ok_or(ApplicationError::UnrecognizedCommand(kvrequest.command))?;
         Ok(Request {
             command,
             key: kvrequest.key,
