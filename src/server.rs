@@ -9,7 +9,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(ip: Ipv4Addr, port: u16) -> Self {
+    #[must_use] pub fn new(ip: Ipv4Addr, port: u16) -> Self {
         Server {
             ip,
             port,
@@ -75,7 +75,7 @@ impl Server {
 
         match msg.payload() {
             Ok(request) => {
-                println!("Received request: {:?}", request);
+                println!("Received request: {request:?}");
                 let response = self.handle_request(request);
                 Ok(response.to_msg(message_id))
             }
@@ -97,7 +97,7 @@ impl Server {
                     sock.send_to(&response.to_bytes(), addr).await?;
                 }
                 Err(e) => {
-                    eprintln!("Error: {:?}", e);
+                    eprintln!("Error: {e:?}");
                 }
             }
         }

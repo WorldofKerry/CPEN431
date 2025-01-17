@@ -98,14 +98,14 @@ pub struct Response {
 }
 
 impl Response {
-    pub fn success() -> Response {
+    #[must_use] pub fn success() -> Response {
         Response {
             err_code: 0,
             ..Default::default()
         }
     }
 
-    pub fn error(err_code: ErrorCode) -> Response {
+    #[must_use] pub fn error(err_code: ErrorCode) -> Response {
         Response {
             err_code: err_code as u32,
             ..Default::default()
