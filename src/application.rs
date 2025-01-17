@@ -3,6 +3,8 @@ use crate::{
     protocol::{MessageID, Msg, Protocol},
     protos::KeyValueResponse::KVResponse,
 };
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 use protobuf::Message;
 use std::net::IpAddr;
 
@@ -26,6 +28,7 @@ pub fn random_message_id(port: u16) -> MessageID {
     message_id
 }
 
+#[derive(FromPrimitive)]
 #[derive(Debug)]
 pub enum Command {
     Put = 0x01,
@@ -39,23 +42,6 @@ pub enum Command {
     GetMembershipList = 0x22,
 }
 
-impl From<u32> for Command {
-    fn from(value: u32) -> Self {
-        match value {
-            0x01 => Command::Put,
-            0x02 => Command::Get,
-            0x03 => Command::Remove,
-            0x04 => Command::Shutdown,
-            0x05 => Command::Wipeout,
-            0x06 => Command::IsAlive,
-            0x07 => Command::GetPID,
-            0x08 => Command::GetMembershipCount,
-            0x22 => Command::GetMembershipList,
-            _ => panic!("Invalid command"),
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct Request {
     pub command: Command,
@@ -64,38 +50,39 @@ pub struct Request {
     pub version: Option<i32>,
 }
 
+
+#[derive(Debug, Default)]
+pub struct Response {
+    pub err_code: u32,
+    pub value: Option<Vec<u8>>,
+    pub pid: Option<i32>,
+    pub version: Option<i32>,
+    pub overload_wait_time: Option<i32>,
+    pub membership_count: Option<i32>,
+}
 pub trait Serialize {
-    fn from_components(
-        message_id: MessageID,
-        command: Command,
-        key: Option<Vec<u8>>,
-        value: Option<Vec<u8>>,
-        version: Option<i32>,
-    ) -> Self;
+    fn to_bytes(self, message_id: MessageID) -> Vec<u8>;
 }
 
-impl Serialize for Msg {
-    fn from_components(
-        message_id: MessageID,
-        command: Command,
-        key: Option<Vec<u8>>,
-        value: Option<Vec<u8>>,
-        version: Option<i32>,
-    ) -> Self {
-        let payload = KVRequest {
-            command: command as u32,
-            key,
-            value,
-            version,
+impl Serialize for Response {
+    fn to_bytes(self, message_id: MessageID) -> Vec<u8> {
+        let kvresponse = KVResponse {
+            errCode: self.err_code,
+            value: self.value,
+            pid: self.pid,
+            version: self.version,
+            overloadWaitTime: self.overload_wait_time,
+            membershipCount: self.membership_count,
             special_fields: Default::default(),
         };
-        Msg::from_request(message_id, payload.write_to_bytes().unwrap())
+        Msg::from_request(message_id, kvresponse.write_to_bytes().unwrap()).write_to_bytes().unwrap()
     }
 }
 
 pub trait Deserialize {
     fn from_bytes(response: &[u8]) -> Self;
     fn payload(&self) -> Request;
+    fn message_id(&self) -> MessageID;
 }
 
 impl Deserialize for Msg {
@@ -106,20 +93,14 @@ impl Deserialize for Msg {
     fn payload(&self) -> Request {
         let kvrequest = KVRequest::parse_from_bytes(&self.payload).unwrap();
         Request {
-            command: Command::from(kvrequest.command),
+            command: Command::from_u32(kvrequest.command).unwrap(),
             key: kvrequest.key,
             value: kvrequest.value,
             version: kvrequest.version,
         }
     }
-}
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    #[test]
-    fn test_msg() {
-        let message_id = random_message_id(34254);
-        let _request = Msg::from_components(message_id, Command::IsAlive, None, None, None);
+    fn message_id(&self) -> MessageID {
+        self.messageID.as_slice().try_into().unwrap()
     }
 }
