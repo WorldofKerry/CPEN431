@@ -184,10 +184,12 @@ dependencies = [
  "local-ip-address",
  "num-derive",
  "num-traits",
+ "portpicker",
  "protobuf",
  "protobuf-codegen",
  "protoc-bin-vendored",
  "rand",
+ "tempfile",
  "thiserror 2.0.11",
  "tokio",
 ]
@@ -443,6 +445,15 @@ name = "pin-project-lite"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b3cff922bd51709b605d9ead9aa71031d81447142d828eb4a6eba76fe619f9b"
+
+[[package]]
+name = "portpicker"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be97d76faf1bfab666e1375477b23fde79eccf0276e9b63b92a39d676a889ba9"
+dependencies = [
+ "rand",
+]
 
 [[package]]
 name = "ppv-lite86"
