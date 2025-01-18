@@ -61,7 +61,6 @@ fn dummy() {
 
 #[test]
 fn basic() {
-    return;
     let ip_ports = parse_servers_list();
     let _servers = ip_ports
         .iter()

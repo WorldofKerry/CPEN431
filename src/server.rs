@@ -2,10 +2,42 @@ use std::{collections::HashMap, io, net::Ipv4Addr};
 use crate::{application::{Command, Deserialize, Request, Response, Serialize}, protocol::{Msg, Protocol}};
 use tokio::net::UdpSocket;
 
+#[derive(Debug, Eq, Hash, PartialEq)]
+pub struct Key {
+    key: Vec<u8>,
+}
+
+impl Key {
+    pub fn new(key: Vec<u8>) -> Self {
+        Key { key }
+    }
+}
+
+#[derive(Debug, Eq, Hash, PartialEq)]
+pub struct Value {
+    value: Vec<u8>,
+    version: i32,
+}
+
+impl Value {
+    pub fn new(value: Vec<u8>, version: Option<i32>) -> Self {
+        Value {
+            value,
+            version: version.unwrap_or(0),
+        }
+    }
+    pub fn version(&self) -> i32 {
+        self.version
+    }
+    pub fn value(&self) -> &[u8] {
+        &self.value
+    }
+}
+
 pub struct Server {
     ip: Ipv4Addr,
     port: u16,
-    kv_data: HashMap<Vec<u8>, Vec<u8>>,
+    kv_data: HashMap<Key, Value>,
 }
 
 impl Server {
@@ -34,9 +66,10 @@ impl Server {
                 command: Command::Put,
                 key: Some(key),
                 value: Some(value),
+                version,
                 ..
             } => {
-                self.kv_data.insert(key, value);
+                self.kv_data.insert(Key::new(key), Value::new(value, version));
                 Response::success()
             },
             Request {
@@ -44,11 +77,14 @@ impl Server {
                 key: Some(key),
                 ..
             } => {
-                let value = self.kv_data.get(&key).cloned();
-                Response {
-                    err_code: if value.is_some() { 0 } else { 1 },
-                    value,
-                    ..Default::default()
+                let value = self.kv_data.get(&Key::new(key));
+                match value {
+                    Some(value) => Response {
+                        value: Some(value.value().to_vec()),
+                        version: Some(value.version()),
+                        ..Default::default()
+                    },
+                    None => Response::error(crate::application::ErrorCode::NonExistentKey),
                 }
             },
             Request {
@@ -56,11 +92,10 @@ impl Server {
                 key: Some(key),
                 ..
             } => {
-                let value = self.kv_data.remove(&key);
-                Response {
-                    err_code: if value.is_some() { 0 } else { 1 },
-                    value,
-                    ..Default::default()
+                let value = self.kv_data.remove(&Key::new(key));
+                match value {
+                    Some(_) => Response::success(),
+                    None => Response::error(crate::application::ErrorCode::NonExistentKey),
                 }
             }
             _ => {
