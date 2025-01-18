@@ -87,7 +87,7 @@ pub struct Request {
     pub version: Option<i32>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Response {
     pub err_code: u32,
     pub value: Option<Vec<u8>>,

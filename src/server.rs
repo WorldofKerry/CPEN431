@@ -1,5 +1,5 @@
-use std::{collections::HashMap, io, net::Ipv4Addr};
-use crate::{application::{Command, Deserialize, Request, Response, Serialize}, protocol::{Msg, Protocol}};
+use std::{collections::{HashMap, HashSet}, io, net::Ipv4Addr};
+use crate::{application::{Command, Deserialize, Request, Response, Serialize}, protocol::{MessageID, Msg, Protocol}};
 use tokio::net::UdpSocket;
 
 #[derive(Debug, Eq, Hash, PartialEq)]
@@ -38,6 +38,7 @@ pub struct Server {
     ip: Ipv4Addr,
     port: u16,
     kv_data: HashMap<Key, Value>,
+    at_most_once_cache: HashMap<MessageID, Response>,
 }
 
 impl Server {
@@ -46,6 +47,7 @@ impl Server {
             ip,
             port,
             kv_data: HashMap::new(),
+            at_most_once_cache: HashMap::new(),
         }
     }
 
@@ -108,15 +110,22 @@ impl Server {
         let msg = Msg::from_bytes(buf)?;
         let message_id = msg.message_id();
 
-        match msg.payload() {
+        if self.at_most_once_cache.contains_key(&message_id) {
+            println!("Received duplicate message: {:?}", message_id);
+            return Ok(self.at_most_once_cache[&message_id].clone().to_msg(message_id));
+        }
+        
+        let response = match msg.payload() {
             Ok(request) => {
                 let response = self.handle_request(request);
-                Ok(response.to_msg(message_id))
+                response
             }
             Err(e) => {
-                Ok(Response::error(e.into()).to_msg(message_id))
+                Response::error(e.into())
             }
-        }
+        };
+        self.at_most_once_cache.insert(message_id, response.clone());
+        Ok(response.to_msg(message_id))
     }
 
     pub async fn run(&mut self) -> io::Result<()> {
