@@ -25,19 +25,6 @@ fn create_ips_ports(count: usize) -> (NamedTempFile, Vec<(Ipv4Addr, u16)>) {
     dbg!(file, ips_ports)
 }
 
-fn parse_servers_list() -> Vec<(Ipv4Addr, u16)> {
-    let servers_list = include_str!("../servers_list.txt");
-    servers_list
-        .lines()
-        .map(|s| {
-            let mut parts = s.split(':');
-            let ip = parts.next().unwrap().parse().unwrap();
-            let port = parts.next().unwrap().parse().unwrap();
-            (ip, port)
-        })
-        .collect()
-}
-
 fn check_log_file(path: impl AsRef<std::path::Path>) {
     let log = std::fs::read_to_string(path).unwrap();
     let log = log.to_lowercase();

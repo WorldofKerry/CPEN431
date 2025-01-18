@@ -13,6 +13,7 @@ protoc-bin-vendored = "3.1.0"
 anyhow = "1.0.95"
 clap = { version = "4.5.26", features = ["derive"] }
 crc32fast = "1.4.2"
+hashlink = "0.10.0"
 hex = "0.4.3"
 local-ip-address = "0.6.3"
 num-derive = "0.4.2"

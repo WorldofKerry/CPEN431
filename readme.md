@@ -4,6 +4,8 @@ Follows the assignments the 2024W2 CPEN 431 offering at UBC, but uses Rust inste
 
 https://docs.google.com/document/d/1AyHvEb7SATx0uo9NOAgmOImCMGCAyjaQ_KL2tOXWNUQ/edit?tab=t.0
 
+http://52.27.39.26:43104/leaderboard
+
 ## Setup
 
 ```bash
