@@ -75,7 +75,6 @@ impl Server {
 
         match msg.payload() {
             Ok(request) => {
-                println!("Received request: {request:?}");
                 let response = self.handle_request(request);
                 Ok(response.to_msg(message_id))
             }
@@ -88,7 +87,7 @@ impl Server {
     pub async fn run(&mut self) -> io::Result<()> {
         let sock = UdpSocket::bind((self.ip, self.port)).await?;
         println!("Server listening on {}:{}", sock.local_addr().unwrap().ip(), sock.local_addr().unwrap().port());
-        let mut buf = [0; 1024];
+        let mut buf = [0; 16 * 1024];
         loop {
             let (len, addr) = sock.recv_from(&mut buf).await?;
 
@@ -96,8 +95,8 @@ impl Server {
                 Ok(response) => {
                     sock.send_to(&response.to_bytes(), addr).await?;
                 }
-                Err(e) => {
-                    eprintln!("Error: {e:?}");
+                Err(err) => {
+                    dbg!(err);
                 }
             }
         }

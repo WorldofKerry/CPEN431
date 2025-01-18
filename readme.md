@@ -16,7 +16,8 @@ sudo apt install openjdk-17-jdk openjdk-17-jre
 
 ```bash
 # Server
-cargo run --release
+cargo run --release 0.0.0.0 16401
 
-# Dummy Client
+# Clients
 java -jar ./a4_2025_dummy_tests_v1.jar --servers-list servers_list.txt
+java -jar ./a4_2025_basic_tests_v1.jar --servers-list servers_list.txt

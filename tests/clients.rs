@@ -1,5 +1,14 @@
 use std::{net::Ipv4Addr, process::Command};
 
+struct ChildGuard {
+    pub child: std::process::Child,
+}
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        self.child.kill().unwrap();
+    }
+}
 
 fn parse_servers_list() -> Vec<(Ipv4Addr, u16)> {
     let servers_list = include_str!("../servers_list.txt");
@@ -23,19 +32,18 @@ fn check_log_file(path: impl AsRef<std::path::Path>) {
 
 #[test]
 fn dummy() {
-    let servers = parse_servers_list();
-
-    let mut server_commands = servers
+    let ip_ports = parse_servers_list();
+    let _servers = ip_ports
         .iter()
-        .map(|(ip, port)| {
-            Command::new("cargo")
+        .map(|(ip, port)| ChildGuard {
+            child: Command::new("cargo")
                 .arg("run")
                 .arg("--release")
                 .arg("--")
                 .arg(ip.to_string())
                 .arg(port.to_string())
                 .spawn()
-                .unwrap()
+                .unwrap(),
         })
         .collect::<Vec<_>>();
 
@@ -49,8 +57,34 @@ fn dummy() {
     println!("status: {:?}", output);
 
     check_log_file("A4-dummy.log");
+}
 
-    for server in server_commands.iter_mut() {
-        server.kill().unwrap();
-    }
+#[test]
+fn basic() {
+    return;
+    let ip_ports = parse_servers_list();
+    let _servers = ip_ports
+        .iter()
+        .map(|(ip, port)| ChildGuard {
+            child: Command::new("cargo")
+                .arg("run")
+                .arg("--release")
+                .arg("--")
+                .arg(ip.to_string())
+                .arg(port.to_string())
+                .spawn()
+                .unwrap(),
+        })
+        .collect::<Vec<_>>();
+
+    let output = Command::new("java")
+        .arg("-jar")
+        .arg("./a4_2025_basic_tests_v1.jar")
+        .arg("--servers-list")
+        .arg("servers_list.txt")
+        .output()
+        .expect("failed to execute process");
+    println!("status: {:?}", output);
+
+    check_log_file("A4-basic.log");
 }
