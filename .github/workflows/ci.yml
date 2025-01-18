@@ -13,9 +13,11 @@ jobs:
     strategy:
       matrix:
         toolchain:
-          - stable
+          - nightly
     steps:
       - uses: actions/checkout@v4
+      - uses: rui314/setup-mold@v1
+      - uses: egor-tensin/setup-clang@v1
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
