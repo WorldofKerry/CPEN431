@@ -7,6 +7,7 @@ use std::{
 
 use get_size::GetSize;
 use tokio::{net::UdpSocket, sync::Mutex};
+use tracing::{info_span, Instrument};
 
 use crate::{
     application::{Command, Deserialize, ErrorCode, Request, Response, Serialize},
@@ -135,56 +136,6 @@ pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> R
         }
         _ => panic!("Unsupported command: {:?}", request.command),
     }
-}
-
-#[tracing::instrument(skip_all)]
-
-pub async fn handle_recv(
-    kvstore: Arc<Mutex<KVStore>>,
-    at_most_once_cache: Arc<Mutex<HashMap<[u8; 16], Response>>>,
-    buf: &[u8],
-) -> anyhow::Result<Msg> {
-    let msg = Msg::from_bytes(buf)?;
-    let message_id = msg.message_id();
-
-    if let Some(response) = at_most_once_cache.lock().await.get(&message_id) {
-        return Ok(response.clone().to_msg(message_id));
-    }
-
-    let response = match msg.payload() {
-        Ok(request) => {
-            let response = handle_request(kvstore, request.clone()).await;
-            response
-        }
-        Err(err) => {
-            dbg!(&err);
-            Response::error(err.into())
-        },
-    };
-    at_most_once_cache
-    .lock()
-    .await
-    .insert(message_id, response.clone());
-    Ok(response.to_msg(message_id))
-}
-
-#[tracing::instrument(skip_all)]
-pub async fn handler(
-    sock: Arc<UdpSocket>,
-    buf: &[u8],
-    addr: std::net::SocketAddr,
-    kvstore: Arc<Mutex<KVStore>>,
-    at_most_once_cache: Arc<Mutex<HashMap<[u8; 16], Response>>>,
-) -> io::Result<()> {
-    match handle_recv(kvstore, at_most_once_cache, &buf).await {
-        Ok(response) => {
-            sock.send_to(&response.to_bytes(), addr).await?;
-        }
-        Err(err) => {
-            dbg!(err);
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
+use crate::kv_store::handle_request;
 use crate::{
     application::{Command, Deserialize, ErrorCode, Request, Response, Serialize},
-    kv_store::{handler, KVStore, Key, Value},
+    kv_store::{KVStore, Key, Value},
     protocol::{MessageID, Msg, Protocol},
 };
 use hashlink::{LinkedHashMap, LruCache};
@@ -11,61 +12,84 @@ use std::{
     sync::Arc,
 };
 use tokio::{net::UdpSocket, sync::Mutex};
-use tracing_subscriber::fmt::format::FmtSpan;
+use tracing::{info_span, Instrument};
 
 #[derive(Debug, Clone)]
 pub struct Server {
-    ip: Ipv4Addr,
-    port: u16,
-    requests: usize,
-    time: std::time::Instant,
+    kvstore: Arc<Mutex<KVStore>>,
+    at_most_once_cache: Arc<Mutex<HashMap<MessageID, Response>>>,
+}
+
+impl Default for Server {
+    fn default() -> Self {
+        Server {
+            kvstore: Arc::new(Mutex::new(KVStore::new())),
+            at_most_once_cache: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
 }
 
 impl Server {
-    #[must_use]
-    pub fn new(ip: Ipv4Addr, port: u16) -> Self {
-        Server { ip, port, requests: 0, time: std::time::Instant::now() }
-    }
-
     #[tracing::instrument(skip_all)]
-    async fn _recv_wrapper(
-        sock: Arc<UdpSocket>,
-        buf: &mut [u8],
-    ) -> (usize, std::net::SocketAddr) {
-        sock.recv_from(buf).await.unwrap()
+    pub async fn handle_recv(
+        kvstore: Arc<Mutex<KVStore>>,
+        at_most_once_cache: Arc<Mutex<HashMap<[u8; 16], Response>>>,
+        buf: &[u8],
+    ) -> anyhow::Result<Msg> {
+        let msg = Msg::from_bytes(buf)?;
+        let message_id = msg.message_id();
+
+        if let Some(response) = at_most_once_cache.lock().await.get(&message_id) {
+            return Ok(response.clone().to_msg(message_id));
+        }
+
+        let response = match msg.payload() {
+            Ok(request) => {
+                let response = handle_request(kvstore, request.clone()).await;
+                response
+            }
+            Err(err) => {
+                dbg!(&err);
+                Response::error(err.into())
+            }
+        };
+        at_most_once_cache
+            .lock()
+            .await
+            .insert(message_id, response.clone());
+        Ok(response.to_msg(message_id))
     }
 
     #[tracing::instrument(skip_all)]
     pub async fn _loop_body(
-        &mut self,
+        &self,
         sock: Arc<UdpSocket>,
         kvstore: Arc<Mutex<KVStore>>,
         at_most_once_cache: Arc<Mutex<HashMap<MessageID, Response>>>,
         buf: &mut [u8],
-    ) {
-        let (len, addr) = Server::_recv_wrapper(sock.clone(), buf).await;
-        let buf = buf[..len].to_vec();
-        handler(sock, &buf, addr, kvstore, at_most_once_cache)
+    ) -> io::Result<()> {
+        let (len, addr) = sock
+            .recv_from(buf)
+            .instrument(info_span!("recv_from"))
             .await
             .unwrap();
-        self.requests += 1;
-        if self.time.elapsed().as_secs() >= 1 {
-            tracing::info!("Requests per second: {}", self.requests);
-            self.time = std::time::Instant::now();
-            self.requests = 0;
+        let buf = buf[..len].to_vec();
+        match Server::handle_recv(kvstore, at_most_once_cache, &buf).await {
+            Ok(response) => {
+                let bytes = response.to_bytes();
+                sock.send_to(&bytes, addr)
+                    .instrument(info_span!("send_to"))
+                    .await?;
+            }
+            Err(err) => {
+                dbg!(err);
+            }
         }
+        Ok(())
     }
 
-    pub async fn run(&mut self) -> io::Result<()> {
-        tracing_subscriber::fmt::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .with_span_events(FmtSpan::NEW)
-            .with_span_events(FmtSpan::CLOSE)
-            .init();
-
-        let sock = Arc::new(UdpSocket::bind((self.ip, self.port)).await?);
-        let kvstore = Arc::new(Mutex::new(KVStore::new()));
-        let at_most_once_cache = Arc::new(Mutex::new(HashMap::new()));
+    pub async fn serve(&self, ip: Ipv4Addr, port: u16) -> io::Result<()> {
+        let sock = Arc::new(UdpSocket::bind((ip, port)).await?);
         println!(
             "Server listening on {}:{}",
             sock.local_addr().unwrap().ip(),
@@ -76,11 +100,11 @@ impl Server {
         loop {
             self._loop_body(
                 sock.clone(),
-                kvstore.clone(),
-                at_most_once_cache.clone(),
+                self.kvstore.clone(),
+                self.at_most_once_cache.clone(),
                 &mut buf,
             )
-            .await;
+            .await?;
         }
     }
 }
