@@ -31,6 +31,7 @@ fn check_log_file(path: impl AsRef<std::path::Path>) {
     assert!(!log.contains("UNDECIDED".to_lowercase().as_str()));
     assert!(!log.contains("TEST_FAILED".to_lowercase().as_str()));
     assert!(!log.contains("FAIL_IMMEDIATELY".to_lowercase().as_str()));
+    assert!(!log.contains("Server is down. Aborting!".to_lowercase().as_str()));
 }
 
 fn client_runner(name: &str) {

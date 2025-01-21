@@ -26,4 +26,5 @@ jobs:
       - run: rustup component add rustc-codegen-cranelift-preview --toolchain nightly
       - run: cargo build --verbose
       - run: cargo test --verbose
+      - run: cat A4-dummy.log
       - run: cat A4-basic.log

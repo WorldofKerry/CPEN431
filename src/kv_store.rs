@@ -102,7 +102,7 @@ pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> R
                 return Response::error(ErrorCode::InvalidValue);
             }
             let mut kvstore = kvstore.lock().await;
-            if kvstore.get_size() > 67 * 1024 * 1024 {
+            if kvstore.get_size() > 60 * 1024 * 1024 {
                 return Response::error(ErrorCode::OutOfSpace);
             }
             kvstore.insert(Key::new(key), Value::new(value, version));
