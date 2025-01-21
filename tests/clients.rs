@@ -30,6 +30,7 @@ fn check_log_file(path: impl AsRef<std::path::Path>) {
     let log = log.to_lowercase();
     assert!(!log.contains("undecided"));
     assert!(!log.contains("test_failed"));
+    assert!(!log.contains("FAIL_IMMEDIATELY"));
 }
 
 fn client_runner(name: &str) {

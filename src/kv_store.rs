@@ -74,7 +74,7 @@ impl DerefMut for KVStore {
     }
 }
 
-#[tracing::instrument(skip_all)]
+// #[tracing::instrument(skip_all)]
 pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> Response {
     match request {
         Request {

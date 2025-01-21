@@ -29,17 +29,17 @@ impl Default for Server {
 }
 
 impl Server {
-    #[tracing::instrument(skip_all)]
-    pub async fn handle_recv(
+    // #[tracing::instrument(skip_all)]
+    pub async fn _parse_bytes(
         kvstore: Arc<Mutex<KVStore>>,
         at_most_once_cache: Arc<Mutex<HashMap<[u8; 16], Response>>>,
         buf: &[u8],
-    ) -> anyhow::Result<Msg> {
+    ) -> anyhow::Result<Vec<u8>> {
         let msg = Msg::from_bytes(buf)?;
         let message_id = msg.message_id();
 
         if let Some(response) = at_most_once_cache.lock().await.get(&message_id) {
-            return Ok(response.clone().to_msg(message_id));
+            return Ok(response.clone().to_msg(message_id).to_bytes());
         }
 
         let response = match msg.payload() {
@@ -56,11 +56,11 @@ impl Server {
             .lock()
             .await
             .insert(message_id, response.clone());
-        Ok(response.to_msg(message_id))
+        Ok(response.to_msg(message_id).to_bytes())
     }
 
-    #[tracing::instrument(skip_all)]
-    pub async fn _loop_body(
+    // #[tracing::instrument(skip_all)]
+    pub async fn _listen_socket(
         &self,
         sock: Arc<UdpSocket>,
         kvstore: Arc<Mutex<KVStore>>,
@@ -73,10 +73,9 @@ impl Server {
             .await
             .unwrap();
         let buf = buf[..len].to_vec();
-        match Server::handle_recv(kvstore, at_most_once_cache, &buf).await {
+        match Server::_parse_bytes(kvstore, at_most_once_cache, &buf).await {
             Ok(response) => {
-                let bytes = response.to_bytes();
-                sock.send_to(&bytes, addr)
+                sock.send_to(&response, addr)
                     .instrument(info_span!("send_to"))
                     .await?;
             }
@@ -97,7 +96,7 @@ impl Server {
 
         let mut buf = [0; 16 * 1024];
         loop {
-            self._loop_body(
+            self._listen_socket(
                 sock.clone(),
                 self.kvstore.clone(),
                 self.at_most_once_cache.clone(),
