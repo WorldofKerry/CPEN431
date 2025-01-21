@@ -11,13 +11,14 @@ use std::{
     sync::Arc,
 };
 use get_size::GetSize;
+use hashlink::LruCache;
 use tokio::{net::UdpSocket, sync::Mutex};
 use tracing::{info_span, Instrument};
 
 #[derive(Debug, Clone)]
 pub struct Server {
     kvstore: Arc<Mutex<KVStore>>,
-    at_most_once_cache: Arc<Mutex<HashMap<MessageID, Response>>>,
+    at_most_once_cache: Arc<Mutex<LruCache<MessageID, Response>>>,
     last_time: std::time::Instant,
 }
 
@@ -25,7 +26,7 @@ impl Default for Server {
     fn default() -> Self {
         Server {
             kvstore: Arc::new(Mutex::new(KVStore::new())),
-            at_most_once_cache: Arc::new(Mutex::new(HashMap::new())),
+            at_most_once_cache: Arc::new(Mutex::new(LruCache::new(1000))),
             last_time: std::time::Instant::now(),
         }
     }
@@ -35,7 +36,7 @@ impl Server {
     // #[tracing::instrument(skip_all)]
     pub async fn _parse_bytes(
         kvstore: Arc<Mutex<KVStore>>,
-        at_most_once_cache: Arc<Mutex<HashMap<[u8; 16], Response>>>,
+        at_most_once_cache: Arc<Mutex<LruCache<MessageID, Response>>>,
         buf: &[u8],
     ) -> anyhow::Result<Vec<u8>> {
         let msg = Msg::from_bytes(buf)?;
@@ -66,7 +67,7 @@ impl Server {
         &mut self,
         sock: Arc<UdpSocket>,
         kvstore: Arc<Mutex<KVStore>>,
-        at_most_once_cache: Arc<Mutex<HashMap<MessageID, Response>>>,
+        at_most_once_cache: Arc<Mutex<LruCache<MessageID, Response>>>,
         buf: &mut [u8],
     ) -> io::Result<()> {
 
