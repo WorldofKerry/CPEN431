@@ -3,7 +3,6 @@ use crate::{
     protocol::{MessageID, Msg, Protocol},
     protos::KeyValueResponse::KVResponse,
 };
-use anyhow::Error;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use protobuf::Message;

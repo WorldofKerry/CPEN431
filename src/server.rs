@@ -1,12 +1,11 @@
 use crate::kv_store::handle_request;
 use crate::{
-    application::{Command, Deserialize, ErrorCode, Request, Response, Serialize},
-    kv_store::{KVStore, Key, Value},
+    application::{Deserialize, Response, Serialize},
+    kv_store::KVStore,
     protocol::{MessageID, Msg, Protocol},
 };
-use hashlink::{LinkedHashMap, LruCache};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     io,
     net::Ipv4Addr,
     sync::Arc,
@@ -45,8 +44,8 @@ impl Server {
 
         let response = match msg.payload() {
             Ok(request) => {
-                let response = handle_request(kvstore, request.clone()).await;
-                response
+                
+                handle_request(kvstore, request.clone()).await
             }
             Err(err) => {
                 dbg!(&err);

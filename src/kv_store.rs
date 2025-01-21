@@ -1,18 +1,13 @@
 use std::{
     collections::HashMap,
-    io,
     ops::{Deref, DerefMut},
     sync::Arc,
 };
 
 use get_size::GetSize;
-use tokio::{net::UdpSocket, sync::Mutex};
-use tracing::{info_span, Instrument};
+use tokio::sync::Mutex;
 
-use crate::{
-    application::{Command, Deserialize, ErrorCode, Request, Response, Serialize},
-    protocol::{Msg, Protocol},
-};
+use crate::application::{Command, ErrorCode, Request, Response};
 
 #[derive(Debug, Eq, Hash, PartialEq, GetSize, Clone)]
 pub struct Key {
@@ -49,6 +44,12 @@ impl Value {
 #[derive(Debug)]
 pub struct KVStore {
     data: HashMap<Key, Value>,
+}
+
+impl Default for KVStore {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl KVStore {

@@ -19,6 +19,6 @@ async fn main() -> io::Result<()> {
         .init();
 
     let cli = Cli::parse();
-    let mut server = Server::default();
+    let server = Server::default();
     server.serve(cli.ip, cli.port).await
 }
