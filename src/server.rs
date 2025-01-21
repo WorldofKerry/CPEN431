@@ -148,6 +148,18 @@ impl Server {
         }
     }
 
+    async fn handler(&mut self, sock: UdpSocket, buf: &mut [u8], addr: std::net::SocketAddr) -> io::Result<()> {
+        match self.handle_recv(buf) {
+            Ok(response) => {
+                sock.send_to(&response.to_bytes(), addr).await?;
+            }
+            Err(err) => {
+                dbg!(err);
+            }
+        }
+        Ok(())
+    }
+
     pub async fn run(&mut self) -> io::Result<()> {
         let sock = UdpSocket::bind((self.ip, self.port)).await?;
         println!("Server listening on {}:{}", sock.local_addr().unwrap().ip(), sock.local_addr().unwrap().port());
@@ -181,6 +193,5 @@ mod test {
             value: Some(value.clone()),
             version: None,
         });
-        assert_eq!(server.get_kv_size(), key.len() + value.len());
     }
 }

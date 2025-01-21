@@ -1,9 +1,12 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::Arc};
 
 use get_size::GetSize;
+use tokio::sync::Mutex;
+
+use crate::application::{Command, ErrorCode, Request, Response};
 
 
-#[derive(Debug, Eq, Hash, PartialEq, GetSize)]
+#[derive(Debug, Eq, Hash, PartialEq, GetSize, Clone)]
 pub struct Key {
     pub key: Vec<u8>,
 }
@@ -14,7 +17,7 @@ impl Key {
     }
 }
 
-#[derive(Debug, Eq, Hash, PartialEq, GetSize)]
+#[derive(Debug, Eq, Hash, PartialEq, GetSize, Clone)]
 pub struct Value {
     pub value: Vec<u8>,
     pub version: i32,
@@ -36,67 +39,117 @@ impl Value {
 }
 
 #[derive(Debug)]
-pub struct FixedSizeKVStore {
+pub struct KVStore {
     data: HashMap<Key, Value>,
-    current_size: usize,
-    max_size: usize,
 }
 
-impl FixedSizeKVStore {
-    pub fn new(max_size: usize) -> Self {
-        FixedSizeKVStore {
+impl KVStore {
+    pub fn new() -> Self {
+        KVStore {
             data: HashMap::new(),
-            max_size,
-            current_size: std::mem::size_of::<FixedSizeKVStore>(),
         }
     }
+}
 
-    fn mem_size(key: &Key, value: &Value) -> usize {
-        key.key.len() + value.value.len()
+impl Deref for KVStore {
+    type Target = HashMap<Key, Value>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
     }
+}
 
-    pub fn insert(&mut self, key: Key, value: Value) -> Result<(), ()> {
-        let mem_size = Self::mem_size(&key, &value);
-        if self.current_size + mem_size > self.max_size {
-            return Err(());
+impl DerefMut for KVStore {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
+pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> Response {
+    match request {
+        Request {
+            command: Command::IsAlive,
+            ..
+        } => Response::success(),
+        Request {
+            command: Command::Wipeout,
+            ..
+        } => {
+            kvstore.lock().await.clear();
+            Response::success()
+        },
+        Request {
+            command: Command::Put,
+            key: Some(key),
+            value: Some(value),
+            version,
+            ..
+        } => {
+            kvstore.lock().await.insert(
+                Key::new(key),
+                Value::new(value, version),
+            );
+            Response::success()
+        },
+        Request {
+            command: Command::Get,
+            key: Some(key),
+            ..
+        } => {
+            match kvstore.lock().await.get(&Key::new(key)) {
+                Some(Value { value, version }) => Response {
+                    value: Some(value.to_vec()),
+                    version: Some(*version),
+                    ..Default::default()
+                },
+                None => Response::error(ErrorCode::NonExistentKey),
+            }
+        },
+        Request {
+            command: Command::Remove,
+            key: Some(key),
+            ..
+        } => {
+            match kvstore.lock().await.remove(&Key::new(key)) {
+                Some(_) => Response::success(),
+                None => Response::error(ErrorCode::NonExistentKey),
+            }
+        },
+        Request {
+            command: Command::Shutdown,
+            ..
+        } => {
+            std::process::exit(0);
         }
-        self.data.insert(key, value);
-        self.current_size += mem_size;
-        Ok(())
-    }
-
-    pub fn get(&self, key: &Key) -> Option<&Value> {
-        self.data.get(key)
-    }
-
-    pub fn remove(&mut self, key: &Key) -> Option<Value> {
-        if let Some(value) = self.data.remove(key) {
-            self.current_size -= Self::mem_size(key, &value);
-            Some(value)
-        } else {
-            None
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.data.clear();
-        self.current_size = std::mem::size_of::<FixedSizeKVStore>();
-    }
-
-    pub fn approx_mem_size(&self) -> usize {
-        self.current_size
+        _ => panic!("Unsupported command: {:?}", request.command),
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    #[test]
-    fn test_fixed_size_kv_store() {
-        let base_size = 64;
-        let mut kv_store = FixedSizeKVStore::new(1000);
-        assert_eq!(kv_store.approx_mem_size(), base_size);
-        kv_store.insert(Key::new(vec![1, 2, 3]), Value::new(vec![4, 5], None)).unwrap();
-        assert_eq!(kv_store.approx_mem_size(), base_size + 3 + 2);
+
+    #[tokio::test]
+    async fn test_kvstore() {
+        let kvstore = Arc::new(Mutex::new(KVStore::new()));
+        let mut handles = vec![];
+        for i in 0..10 {
+            let inner = kvstore.clone();
+            let handle = tokio::spawn(async move {
+                let request = Request {
+                    command: Command::Put,
+                    key: Some(vec![0]),
+                    value: Some(vec![i as u8]),
+                    version: None,
+                };
+                let response = handle_request(inner, request).await;
+                eprintln!("{:?}", response);
+            });
+            handles.push(handle);
+        }
+        for handle in handles {
+            handle.await.unwrap();
+            eprintln!("{:?}", kvstore.lock().await);
+        }
     }
 }
