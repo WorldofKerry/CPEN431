@@ -1,10 +1,17 @@
-use std::{collections::HashMap, ops::{Deref, DerefMut}, sync::Arc};
+use std::{
+    collections::HashMap,
+    io,
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 use get_size::GetSize;
-use tokio::sync::Mutex;
+use tokio::{net::UdpSocket, sync::Mutex};
 
-use crate::application::{Command, ErrorCode, Request, Response};
-
+use crate::{
+    application::{Command, Deserialize, ErrorCode, Request, Response, Serialize},
+    protocol::{Msg, Protocol},
+};
 
 #[derive(Debug, Eq, Hash, PartialEq, GetSize, Clone)]
 pub struct Key {
@@ -77,7 +84,7 @@ pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> R
         } => {
             kvstore.lock().await.clear();
             Response::success()
-        },
+        }
         Request {
             command: Command::Put,
             key: Some(key),
@@ -85,35 +92,39 @@ pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> R
             version,
             ..
         } => {
-            kvstore.lock().await.insert(
-                Key::new(key),
-                Value::new(value, version),
-            );
+            if key.len() > 32 {
+                return Response::error(ErrorCode::InvalidKey);
+            }
+            if value.len() > 10000 {
+                return Response::error(ErrorCode::InvalidValue);
+            }
+            let mut kvstore = kvstore.lock().await;
+            if kvstore.get_size() > 68 * 1024 * 1024 {
+                return Response::error(ErrorCode::OutOfSpace);
+            }
+            kvstore.insert(Key::new(key), Value::new(value, version));
             Response::success()
-        },
+        }
         Request {
             command: Command::Get,
             key: Some(key),
             ..
-        } => {
-            match kvstore.lock().await.get(&Key::new(key)) {
-                Some(Value { value, version }) => Response {
-                    value: Some(value.to_vec()),
-                    version: Some(*version),
-                    ..Default::default()
-                },
-                None => Response::error(ErrorCode::NonExistentKey),
-            }
+        } => match kvstore.lock().await.get(&Key::new(key)) {
+            Some(Value { value, version }) => Response {
+                err_code: ErrorCode::Success,
+                value: Some(value.to_vec()),
+                version: Some(*version),
+                ..Default::default()
+            },
+            None => Response::error(ErrorCode::NonExistentKey),
         },
         Request {
             command: Command::Remove,
             key: Some(key),
             ..
-        } => {
-            match kvstore.lock().await.remove(&Key::new(key)) {
-                Some(_) => Response::success(),
-                None => Response::error(ErrorCode::NonExistentKey),
-            }
+        } => match kvstore.lock().await.remove(&Key::new(key)) {
+            Some(_) => Response::success(),
+            None => Response::error(ErrorCode::NonExistentKey),
         },
         Request {
             command: Command::Shutdown,
@@ -123,6 +134,54 @@ pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> R
         }
         _ => panic!("Unsupported command: {:?}", request.command),
     }
+}
+
+pub async fn handle_recv(
+    kvstore: Arc<Mutex<KVStore>>,
+    at_most_once_cache: Arc<Mutex<HashMap<[u8; 16], Response>>>,
+    buf: &[u8],
+) -> anyhow::Result<Msg> {
+    let msg = Msg::from_bytes(buf)?;
+    let message_id = msg.message_id();
+
+    if let Some(response) = at_most_once_cache.lock().await.get(&message_id) {
+        return Ok(response.clone().to_msg(message_id));
+    }
+
+    let response = match msg.payload() {
+        Ok(request) => {
+            let response = handle_request(kvstore, request.clone()).await;
+            response
+        }
+        Err(err) => {
+            dbg!(&err);
+            Response::error(err.into())
+        },
+    };
+    at_most_once_cache
+    .lock()
+    .await
+    .insert(message_id, response.clone());
+    Ok(response.to_msg(message_id))
+}
+
+#[tracing::instrument]
+pub async fn handler(
+    sock: Arc<UdpSocket>,
+    buf: &[u8],
+    addr: std::net::SocketAddr,
+    kvstore: Arc<Mutex<KVStore>>,
+    at_most_once_cache: Arc<Mutex<HashMap<[u8; 16], Response>>>,
+) -> io::Result<()> {
+    match handle_recv(kvstore, at_most_once_cache, &buf).await {
+        Ok(response) => {
+            sock.send_to(&response.to_bytes(), addr).await?;
+        }
+        Err(err) => {
+            dbg!(err);
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -3,6 +3,7 @@ use crate::{
     protocol::{MessageID, Msg, Protocol},
     protos::KeyValueResponse::KVResponse,
 };
+use anyhow::Error;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use protobuf::Message;
@@ -45,7 +46,7 @@ pub enum Command {
     GetMembershipList = 0x22,
 }
 
-#[derive(FromPrimitive, Debug)]
+#[derive(FromPrimitive, Debug, Default, Clone)]
 pub enum ErrorCode {
     Success = 0x00,
     NonExistentKey = 0x01,
@@ -57,6 +58,8 @@ pub enum ErrorCode {
     InvalidValue = 0x07,
     ProtobufError = 0x21,
     InvalidChecksum = 0x22,
+    #[default]
+    Default = 0x23,
 }
 
 #[derive(Error, Debug)]
@@ -79,7 +82,7 @@ impl From<ApplicationError> for ErrorCode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Request {
     pub command: Command,
     pub key: Option<Vec<u8>>,
@@ -89,7 +92,7 @@ pub struct Request {
 
 #[derive(Debug, Default, Clone)]
 pub struct Response {
-    pub err_code: u32,
+    pub err_code: ErrorCode,
     pub value: Option<Vec<u8>>,
     pub pid: Option<i32>,
     pub version: Option<i32>,
@@ -100,14 +103,14 @@ pub struct Response {
 impl Response {
     #[must_use] pub fn success() -> Response {
         Response {
-            err_code: 0,
+            err_code: ErrorCode::Success,
             ..Default::default()
         }
     }
 
     #[must_use] pub fn error(err_code: ErrorCode) -> Response {
         Response {
-            err_code: err_code as u32,
+            err_code,
             ..Default::default()
         }
     }
@@ -119,7 +122,7 @@ pub trait Serialize {
 impl Serialize for Response {
     fn to_msg(self, message_id: MessageID) -> Msg {
         let kvresponse = KVResponse {
-            errCode: self.err_code,
+            errCode: self.err_code as u32,
             value: self.value,
             pid: self.pid,
             version: self.version,
