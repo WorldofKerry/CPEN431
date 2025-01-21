@@ -2,6 +2,7 @@ use std::{collections::{HashMap, HashSet}, io, net::Ipv4Addr};
 use crate::{application::{Command, Deserialize, Request, Response, Serialize}, kv_store::{Key, Value}, protocol::{MessageID, Msg, Protocol}};
 use hashlink::{LinkedHashMap, LruCache};
 use tokio::net::UdpSocket;
+use get_size::GetSize;
 
 #[derive(Debug)]
 struct Metrics {
@@ -14,6 +15,7 @@ pub struct Server {
     kv_data: HashMap<Key, Value>,
     at_most_once_cache: LruCache<MessageID, Response>,
     metrics: Metrics,
+    last_log_time: tokio::time::Instant,
 }
 
 impl Server {
@@ -26,16 +28,17 @@ impl Server {
             metrics: Metrics {
                 requests: HashMap::new(),
             },
+            last_log_time: tokio::time::Instant::now(),
         }
     }
 
     #[must_use] fn get_kv_size(&self) -> usize {
-        // TODO: make this a size counter that increments/decrements as entries added/removed
-        self.kv_data.iter().fold(0, |acc, (k, v)| acc + k.key.len() + v.value.len())
+        self.kv_data.get_size()
     }
 
     fn handle_request(&mut self, request: Request) -> Response {
         self.metrics.requests.entry(request.command.clone()).and_modify(|v| *v += 1).or_insert(1);
+        self.log();
         match request {
             Request {
                 command: Command::IsAlive,
@@ -60,7 +63,7 @@ impl Server {
                     Response::error(crate::application::ErrorCode::InvalidKey)
                 } else if value.len() > 10000 {
                     Response::error(crate::application::ErrorCode::InvalidValue)
-                } else if self.get_kv_size() > 60 * 1024 * 1024 {
+                } else if self.get_kv_size() > 68 * 1024 * 1024 {
                     Response::error(crate::application::ErrorCode::OutOfSpace)
                 } else {
                     self.kv_data.insert(Key::new(key), Value::new(value, version));
@@ -126,26 +129,27 @@ impl Server {
         Ok(response.to_msg(message_id))
     }
 
-    async fn log(&self) {
-        println!("KV Data: {:?}", self.kv_data.len());
-        println!("KV Data Size: {:?}", self.get_kv_size());
-        println!("At Most Once Cache: {:?}", self.at_most_once_cache.len());
-        let pid = std::process::id();
-        let output = tokio::process::Command::new("ps")
-            .arg("-o")
-            .arg("rss=")
-            .arg(format!("{}", pid))
-            .output()
-            .await
-            .unwrap();
-        let memory_usage = String::from_utf8(output.stdout).unwrap().trim().parse::<f64>().unwrap() / 1024.0;
-        println!("Memory Usage: {:.2} MB", memory_usage);
-        println!("Metrics: {:?}", self.metrics);
+    fn log(&mut self) {    
+        if tokio::time::Instant::now().duration_since(self.last_log_time).as_millis() >= 1000 {
+            self.last_log_time = tokio::time::Instant::now();
+            println!("KV Data: {:?}", self.kv_data.len());
+            println!("KV Data Size: {:?}", self.get_kv_size());
+            println!("At Most Once Cache: {:?}", self.at_most_once_cache.len());
+            let pid = std::process::id();
+            let output = std::process::Command::new("ps")
+                .arg("-o")
+                .arg("rss=")
+                .arg(format!("{}", pid))
+                .output()
+                .unwrap();
+            let memory_usage = String::from_utf8(output.stdout).unwrap().trim().parse::<f64>().unwrap() / 1024.0;
+            println!("Memory Usage: {:.2} MB", memory_usage);
+            println!("Metrics: {:?}", self.metrics);
+        }
     }
 
     pub async fn run(&mut self) -> io::Result<()> {
         let sock = UdpSocket::bind((self.ip, self.port)).await?;
-        let mut last_log_time = tokio::time::Instant::now();
         println!("Server listening on {}:{}", sock.local_addr().unwrap().ip(), sock.local_addr().unwrap().port());
         let mut buf = [0; 16 * 1024];
         loop {
@@ -158,11 +162,6 @@ impl Server {
                 Err(err) => {
                     dbg!(err);
                 }
-            }
-
-            if tokio::time::Instant::now().duration_since(last_log_time).as_millis() >= 1000 {
-                self.log().await;
-                last_log_time = tokio::time::Instant::now();
             }
         }
     }

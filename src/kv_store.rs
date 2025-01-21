@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
+use get_size::GetSize;
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+
+#[derive(Debug, Eq, Hash, PartialEq, GetSize)]
 pub struct Key {
     pub key: Vec<u8>,
 }
@@ -12,7 +14,7 @@ impl Key {
     }
 }
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, Hash, PartialEq, GetSize)]
 pub struct Value {
     pub value: Vec<u8>,
     pub version: i32,
