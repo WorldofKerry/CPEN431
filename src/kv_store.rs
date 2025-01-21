@@ -72,6 +72,7 @@ impl DerefMut for KVStore {
     }
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> Response {
     match request {
         Request {
@@ -136,6 +137,8 @@ pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> R
     }
 }
 
+#[tracing::instrument(skip_all)]
+
 pub async fn handle_recv(
     kvstore: Arc<Mutex<KVStore>>,
     at_most_once_cache: Arc<Mutex<HashMap<[u8; 16], Response>>>,
@@ -165,6 +168,7 @@ pub async fn handle_recv(
     Ok(response.to_msg(message_id))
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handler(
     sock: Arc<UdpSocket>,
     buf: &[u8],

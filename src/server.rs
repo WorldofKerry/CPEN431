@@ -17,27 +17,43 @@ use tracing_subscriber::fmt::format::FmtSpan;
 pub struct Server {
     ip: Ipv4Addr,
     port: u16,
+    requests: usize,
+    time: std::time::Instant,
 }
 
 impl Server {
     #[must_use]
     pub fn new(ip: Ipv4Addr, port: u16) -> Self {
-        Server { ip, port }
+        Server { ip, port, requests: 0, time: std::time::Instant::now() }
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn _recv_wrapper(
+        sock: Arc<UdpSocket>,
+        buf: &mut [u8],
+    ) -> (usize, std::net::SocketAddr) {
+        sock.recv_from(buf).await.unwrap()
     }
 
     #[tracing::instrument(skip_all)]
     pub async fn _loop_body(
-        &self,
+        &mut self,
         sock: Arc<UdpSocket>,
         kvstore: Arc<Mutex<KVStore>>,
         at_most_once_cache: Arc<Mutex<HashMap<MessageID, Response>>>,
         buf: &mut [u8],
     ) {
-        let (len, addr) = sock.recv_from(buf).await.unwrap();
+        let (len, addr) = Server::_recv_wrapper(sock.clone(), buf).await;
         let buf = buf[..len].to_vec();
         handler(sock, &buf, addr, kvstore, at_most_once_cache)
             .await
             .unwrap();
+        self.requests += 1;
+        if self.time.elapsed().as_secs() >= 1 {
+            tracing::info!("Requests per second: {}", self.requests);
+            self.time = std::time::Instant::now();
+            self.requests = 0;
+        }
     }
 
     pub async fn run(&mut self) -> io::Result<()> {
