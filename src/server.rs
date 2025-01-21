@@ -1,38 +1,11 @@
 use std::{collections::{HashMap, HashSet}, io, net::Ipv4Addr};
-use crate::{application::{Command, Deserialize, Request, Response, Serialize}, protocol::{MessageID, Msg, Protocol}};
+use crate::{application::{Command, Deserialize, Request, Response, Serialize}, kv_store::{Key, Value}, protocol::{MessageID, Msg, Protocol}};
 use hashlink::{LinkedHashMap, LruCache};
 use tokio::net::UdpSocket;
 
-#[derive(Debug, Eq, Hash, PartialEq)]
-pub struct Key {
-    key: Vec<u8>,
-}
-
-impl Key {
-    pub fn new(key: Vec<u8>) -> Self {
-        Key { key }
-    }
-}
-
-#[derive(Debug, Eq, Hash, PartialEq)]
-pub struct Value {
-    value: Vec<u8>,
-    version: i32,
-}
-
-impl Value {
-    pub fn new(value: Vec<u8>, version: Option<i32>) -> Self {
-        Value {
-            value,
-            version: version.unwrap_or(0),
-        }
-    }
-    pub fn version(&self) -> i32 {
-        self.version
-    }
-    pub fn value(&self) -> &[u8] {
-        &self.value
-    }
+#[derive(Debug)]
+struct Metrics {
+    requests: HashMap<Command, u64>,
 }
 
 pub struct Server {
@@ -40,6 +13,7 @@ pub struct Server {
     port: u16,
     kv_data: HashMap<Key, Value>,
     at_most_once_cache: LruCache<MessageID, Response>,
+    metrics: Metrics,
 }
 
 impl Server {
@@ -49,6 +23,9 @@ impl Server {
             port,
             kv_data: HashMap::new(),
             at_most_once_cache: LruCache::new(100),
+            metrics: Metrics {
+                requests: HashMap::new(),
+            },
         }
     }
 
@@ -58,6 +35,7 @@ impl Server {
     }
 
     fn handle_request(&mut self, request: Request) -> Response {
+        self.metrics.requests.entry(request.command.clone()).and_modify(|v| *v += 1).or_insert(1);
         match request {
             Request {
                 command: Command::IsAlive,
@@ -162,6 +140,7 @@ impl Server {
             .unwrap();
         let memory_usage = String::from_utf8(output.stdout).unwrap().trim().parse::<f64>().unwrap() / 1024.0;
         println!("Memory Usage: {:.2} MB", memory_usage);
+        println!("Metrics: {:?}", self.metrics);
     }
 
     pub async fn run(&mut self) -> io::Result<()> {

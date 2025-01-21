@@ -32,7 +32,7 @@ pub fn random_message_id(port: u16) -> MessageID {
     message_id
 }
 
-#[derive(FromPrimitive, Debug)]
+#[derive(FromPrimitive, Debug, Eq, PartialEq, Hash, Clone)]
 pub enum Command {
     Put = 0x01,
     Get = 0x02,
