@@ -165,7 +165,6 @@ pub async fn handle_recv(
     Ok(response.to_msg(message_id))
 }
 
-#[tracing::instrument]
 pub async fn handler(
     sock: Arc<UdpSocket>,
     buf: &[u8],

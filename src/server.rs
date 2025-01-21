@@ -11,7 +11,6 @@ use std::{
     sync::Arc,
 };
 use tokio::{net::UdpSocket, sync::Mutex};
-use tracing_subscriber::fmt;
 use tracing_subscriber::fmt::format::FmtSpan;
 
 #[derive(Debug, Clone)]
@@ -26,7 +25,7 @@ impl Server {
         Server { ip, port }
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub async fn _loop_body(
         &self,
         sock: Arc<UdpSocket>,
@@ -42,10 +41,10 @@ impl Server {
     }
 
     pub async fn run(&mut self) -> io::Result<()> {
-        fmt::fmt()
+        tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .with_span_events(FmtSpan::NEW)
             .with_span_events(FmtSpan::CLOSE)
-            .with_target(false)
-            .with_level(false)
             .init();
 
         let sock = Arc::new(UdpSocket::bind((self.ip, self.port)).await?);
