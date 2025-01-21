@@ -181,7 +181,7 @@ impl Server {
                 }
             }
 
-            if tokio::time::Instant::now().duration_since(last_log_time).as_millis() >= 100 {
+            if tokio::time::Instant::now().duration_since(last_log_time).as_millis() >= 1000 {
                 self.log().await;
                 last_log_time = tokio::time::Instant::now();
             }

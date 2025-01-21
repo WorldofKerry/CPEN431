@@ -19,6 +19,7 @@ sudo apt install openjdk-17-jdk openjdk-17-jre
 ```bash
 # Server
 cargo run --release 0.0.0.0 16401
+PERF=/usr/lib/linux-tools/5.15.0-130-generic/perf flamegraph -- target/release/cpen431 0.0.0.0 16401
 
 # Clients
 java -jar ./a4_2025_dummy_tests_v1.jar --servers-list servers_list.txt
