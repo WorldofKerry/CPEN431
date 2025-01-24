@@ -6,15 +6,13 @@ use crate::{
     protocol::{MessageID, Msg, Protocol},
 };
 use std::{
-    collections::HashMap,
     io,
     net::Ipv4Addr,
     sync::Arc,
 };
 use get_size::GetSize;
-use hashlink::LruCache;
 use tokio::{net::UdpSocket, sync::Mutex};
-use tracing::{info, info_span, warn, Instrument};
+use tracing::{info, info_span, Instrument};
 
 #[derive(Debug, Clone)]
 pub struct Server {
