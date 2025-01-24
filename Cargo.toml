@@ -1,4 +1,4 @@
-cargo-features = ["codegen-backend"]
+# cargo-features = ["codegen-backend"]
 
 [package]
 name = "cpen431"
@@ -29,8 +29,8 @@ tracing = "0.1.41"
 tracing-appender = "0.2.3"
 tracing-subscriber = "0.3.19"
 
-[profile.dev]
-codegen-backend = "cranelift"
+# [profile.dev]
+# codegen-backend = "cranelift"
 
 [profile.release]
-debug = true
+# debug = true
