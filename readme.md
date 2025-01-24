@@ -25,3 +25,5 @@ PERF=/usr/lib/linux-tools/5.15.0-130-generic/perf flamegraph -- target/release/c
 java -jar ./a4_2025_dummy_tests_v1.jar --servers-list servers_list.txt
 java -jar ./a4_2025_basic_tests_v1.jar --servers-list servers_list.txt
 java -jar ./a4_2025_eval_test_v1.jar --servers-list servers_list.txt
+java -jar ./a4_2025_eval_test_v1.jar --servers-list servers_list.txt --submit --student-id 12345678
+```
