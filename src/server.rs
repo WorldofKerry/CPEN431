@@ -14,7 +14,7 @@ use std::{
 use get_size::GetSize;
 use hashlink::LruCache;
 use tokio::{net::UdpSocket, sync::Mutex};
-use tracing::{info_span, Instrument};
+use tracing::{info, info_span, warn, Instrument};
 
 #[derive(Debug, Clone)]
 pub struct Server {
@@ -93,16 +93,18 @@ impl Server {
             .await
             .unwrap();
         let buf = buf[..len].to_vec();
-        match Server::_parse_bytes(kvstore, at_most_once_cache, &buf).await {
+        let msg = match Server::_parse_bytes(kvstore, at_most_once_cache, &buf).await {
             Ok(response) => {
-                sock.send_to(&response, addr)
-                    .instrument(info_span!("send_to"))
-                    .await?;
+                response
             }
             Err(err) => {
-                dbg!(err);
+                info!("{:?}", err);
+                b"Error".to_vec()
             }
-        }
+        };
+        sock.send_to(&msg, addr)
+            .instrument(info_span!("send_to"))
+            .await?;
         Ok(())
     }
 
