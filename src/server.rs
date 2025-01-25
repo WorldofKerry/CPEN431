@@ -1,8 +1,7 @@
 use crate::expiring_hashmap::ExpiringHashMap;
-use crate::kv_store::handle_request;
+use crate::kv_store::{self, handle_request, KVStore};
 use crate::{
     application::{Deserialize, Response, Serialize},
-    kv_store::KVStore,
     protocol::{MessageID, Msg, Protocol},
 };
 use std::{
@@ -14,10 +13,13 @@ use get_size::GetSize;
 use tokio::{net::UdpSocket, sync::Mutex};
 use tracing::{info, info_span, Instrument};
 
+type SyncKVStore = Arc<Mutex<KVStore>>;
+type SyncAtMostOnceCache = Arc<Mutex<ExpiringHashMap<MessageID, Response>>>;
+
 #[derive(Debug, Clone)]
 pub struct Server {
-    kvstore: Arc<Mutex<KVStore>>,
-    at_most_once_cache: Arc<Mutex<ExpiringHashMap<MessageID, Response>>>,
+    kvstore: SyncKVStore,
+    at_most_once_cache: SyncAtMostOnceCache,
     last_time: std::time::Instant,
 }
 
@@ -34,8 +36,8 @@ impl Default for Server {
 impl Server {
     // #[tracing::instrument(skip_all)]
     pub async fn _parse_bytes(
-        kvstore: Arc<Mutex<KVStore>>,
-        at_most_once_cache: Arc<Mutex<ExpiringHashMap<MessageID, Response>>>,
+        kvstore: SyncKVStore,
+        at_most_once_cache: SyncAtMostOnceCache,
         buf: &[u8],
     ) -> anyhow::Result<Vec<u8>> {
         let msg = Msg::from_bytes(buf)?;
@@ -65,8 +67,8 @@ impl Server {
     pub async fn _listen_socket(
         &mut self,
         sock: Arc<UdpSocket>,
-        kvstore: Arc<Mutex<KVStore>>,
-        at_most_once_cache: Arc<Mutex<ExpiringHashMap<MessageID, Response>>>,
+        kvstore: SyncKVStore,
+        at_most_once_cache: SyncAtMostOnceCache,
         buf: &mut [u8],
     ) -> io::Result<()> {
 
