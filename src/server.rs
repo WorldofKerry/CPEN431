@@ -12,6 +12,7 @@ use std::{
 use get_size::GetSize;
 use tokio::{net::UdpSocket, sync::Mutex};
 use tracing::{info, info_span, Instrument};
+use rayon::prelude::*;
 
 type SyncKVStore = Arc<Mutex<KVStore>>;
 type SyncAtMostOnceCache = Arc<Mutex<ExpiringHashMap<MessageID, Response>>>;
@@ -66,34 +67,33 @@ impl Server {
     // #[tracing::instrument(skip_all)]
     pub async fn _listen_socket(
         &mut self,
-        sock: Arc<UdpSocket>,
+        sock: &UdpSocket,
         kvstore: SyncKVStore,
         at_most_once_cache: SyncAtMostOnceCache,
-        buf: &mut [u8],
     ) -> io::Result<()> {
-
         if self.last_time.elapsed().as_millis() >= 250 {
             self.last_time = std::time::Instant::now();
             let pid = std::process::id();
             let output = tokio::process::Command::new("ps")
-                .arg("-o")
-                .arg("rss=")
-                .arg(format!("{}", pid))
-                .output()
+            .arg("-o")
+            .arg("rss=")
+            .arg(format!("{}", pid))
+            .output()
                 .await
                 .unwrap();
             let memory_usage = String::from_utf8(output.stdout).unwrap().trim().parse::<f64>().unwrap() / 1024.0;
             println!("Memory Usage: {:.2} MB", memory_usage);
             println!("kvstore size: {}", kvstore.lock().await.get_size());
         }
-
+        
+        let mut buf = [0; 16 * 1024];
         let (len, addr) = sock
-            .recv_from(buf)
+            .recv_from(&mut buf)
             .instrument(info_span!("recv_from"))
             .await
             .unwrap();
-        let buf = buf[..len].to_vec();
-        let msg = match Server::_parse_bytes(kvstore, at_most_once_cache, &buf).await {
+        let buf_sliced = buf[..len].to_vec();
+        let msg = match Server::_parse_bytes(kvstore, at_most_once_cache, &buf_sliced).await {
             Ok(response) => {
                 response
             }
@@ -109,20 +109,18 @@ impl Server {
     }
 
     pub async fn serve(&mut self, ip: Ipv4Addr, port: u16) -> io::Result<()> {
-        let sock = Arc::new(UdpSocket::bind((ip, port)).await?);
+        let sock = UdpSocket::bind((ip, port)).await?;
         println!(
             "Server listening on {}:{}",
             sock.local_addr().unwrap().ip(),
             sock.local_addr().unwrap().port()
         );
 
-        let mut buf = [0; 16 * 1024];
         loop {
             self._listen_socket(
-                sock.clone(),
+                &sock,
                 self.kvstore.clone(),
                 self.at_most_once_cache.clone(),
-                &mut buf,
             )
             .await?;
         }
