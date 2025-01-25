@@ -4,18 +4,15 @@ use crate::{
     application::{Deserialize, Response, Serialize},
     protocol::{MessageID, Msg, Protocol},
 };
-use std::{
-    io,
-    net::Ipv4Addr,
-    sync::Arc,
-};
 use get_size::GetSize;
-use tokio::{net::UdpSocket, sync::Mutex};
-use tracing::{info, info_span, Instrument};
 use rayon::prelude::*;
+use std::sync::Mutex;
+use std::{io, net::Ipv4Addr, sync::Arc};
+use tokio::{net::UdpSocket};
+use tracing::{info, info_span, Instrument};
 
-type SyncKVStore = Arc<Mutex<KVStore>>;
-type SyncAtMostOnceCache = Arc<Mutex<ExpiringHashMap<MessageID, Response>>>;
+pub type SyncKVStore = Arc<Mutex<KVStore>>;
+pub type SyncAtMostOnceCache = Arc<Mutex<ExpiringHashMap<MessageID, Response>>>;
 
 #[derive(Debug, Clone)]
 pub struct Server {
@@ -28,7 +25,9 @@ impl Default for Server {
     fn default() -> Self {
         Server {
             kvstore: Arc::new(Mutex::new(KVStore::new())),
-            at_most_once_cache: Arc::new(Mutex::new(ExpiringHashMap::new(std::time::Duration::from_secs(1)))),
+            at_most_once_cache: Arc::new(Mutex::new(ExpiringHashMap::new(
+                std::time::Duration::from_secs(1),
+            ))),
             last_time: std::time::Instant::now(),
         }
     }
@@ -36,7 +35,7 @@ impl Default for Server {
 
 impl Server {
     // #[tracing::instrument(skip_all)]
-    pub async fn _parse_bytes(
+    pub fn _parse_bytes(
         kvstore: SyncKVStore,
         at_most_once_cache: SyncAtMostOnceCache,
         buf: &[u8],
@@ -44,14 +43,12 @@ impl Server {
         let msg = Msg::from_bytes(buf)?;
         let message_id = msg.message_id();
 
-        if let Some(response) = at_most_once_cache.lock().await.get(&message_id) {
+        if let Some(response) = at_most_once_cache.lock().unwrap().get(&message_id) {
             return Ok(response.clone().to_msg(message_id).to_bytes());
         }
 
         let response = match msg.payload() {
-            Ok(request) => {
-                handle_request(kvstore, request.clone()).await
-            }
+            Ok(request) => handle_request(kvstore, request.clone()),
             Err(err) => {
                 dbg!(&err);
                 Response::error(err.into())
@@ -59,7 +56,7 @@ impl Server {
         };
         at_most_once_cache
             .lock()
-            .await
+            .unwrap()
             .insert(message_id, response.clone());
         Ok(response.to_msg(message_id).to_bytes())
     }
@@ -70,41 +67,47 @@ impl Server {
         sock: &UdpSocket,
         kvstore: SyncKVStore,
         at_most_once_cache: SyncAtMostOnceCache,
+        ip: Ipv4Addr,
+        port: u16,
     ) -> io::Result<()> {
         if self.last_time.elapsed().as_millis() >= 250 {
             self.last_time = std::time::Instant::now();
             let pid = std::process::id();
             let output = tokio::process::Command::new("ps")
-            .arg("-o")
-            .arg("rss=")
-            .arg(format!("{}", pid))
-            .output()
+                .arg("-o")
+                .arg("rss=")
+                .arg(format!("{}", pid))
+                .output()
                 .await
                 .unwrap();
-            let memory_usage = String::from_utf8(output.stdout).unwrap().trim().parse::<f64>().unwrap() / 1024.0;
+            let memory_usage = String::from_utf8(output.stdout)
+                .unwrap()
+                .trim()
+                .parse::<f64>()
+                .unwrap()
+                / 1024.0;
             println!("Memory Usage: {:.2} MB", memory_usage);
-            println!("kvstore size: {}", kvstore.lock().await.get_size());
+            println!("kvstore size: {}", kvstore.lock().unwrap().get_size());
         }
-        
+
         let mut buf = [0; 16 * 1024];
         let (len, addr) = sock
             .recv_from(&mut buf)
             .instrument(info_span!("recv_from"))
             .await
             .unwrap();
-        let buf_sliced = buf[..len].to_vec();
-        let msg = match Server::_parse_bytes(kvstore, at_most_once_cache, &buf_sliced).await {
-            Ok(response) => {
-                response
-            }
-            Err(err) => {
-                info!("{:?}", err);
-                b"Error".to_vec()
-            }
-        };
-        sock.send_to(&msg, addr)
-            .instrument(info_span!("send_to"))
-            .await?;
+        rayon::spawn(move || {
+            let buf_sliced = buf[..len].to_vec();
+            let msg = match Server::_parse_bytes(kvstore, at_most_once_cache, &buf_sliced) {
+                Ok(response) => response,
+                Err(err) => {
+                    info!("{:?}", err);
+                    b"Error".to_vec()
+                }
+            };
+            let socket = std::net::UdpSocket::bind((ip, 0)).unwrap();
+            socket.send_to(&msg, addr).unwrap();
+        });
         Ok(())
     }
 
@@ -117,12 +120,11 @@ impl Server {
         );
 
         loop {
-            self._listen_socket(
-                &sock,
-                self.kvstore.clone(),
-                self.at_most_once_cache.clone(),
-            )
-            .await?;
+            self._listen_socket(&sock, self.kvstore.clone(), self.at_most_once_cache.clone(),
+            ip,
+            port
+        )
+                .await?;
         }
     }
 }

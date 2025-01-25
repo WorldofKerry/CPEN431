@@ -1,13 +1,11 @@
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
-    sync::Arc,
 };
 
 use get_size::GetSize;
-use tokio::sync::Mutex;
 
-use crate::application::{Command, ErrorCode, Request, Response};
+use crate::{application::{Command, ErrorCode, Request, Response}, server::SyncKVStore};
 
 #[derive(Debug, Eq, Hash, PartialEq, GetSize, Clone)]
 pub struct Key {
@@ -75,7 +73,7 @@ impl DerefMut for KVStore {
 }
 
 // #[tracing::instrument(skip_all)]
-pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> Response {
+pub fn handle_request(kvstore: SyncKVStore, request: Request) -> Response {
     match request {
         Request {
             command: Command::IsAlive,
@@ -85,7 +83,7 @@ pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> R
             command: Command::Wipeout,
             ..
         } => {
-            kvstore.lock().await.clear();
+            kvstore.lock().unwrap().clear();
             Response::success()
         }
         Request {
@@ -101,7 +99,7 @@ pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> R
             if value.len() > 10000 {
                 return Response::error(ErrorCode::InvalidValue);
             }
-            let mut kvstore = kvstore.lock().await;
+            let mut kvstore = kvstore.lock().unwrap();
             if kvstore.get_size() > 60 * 1024 * 1024 {
                 return Response::error(ErrorCode::OutOfSpace);
             }
@@ -112,7 +110,7 @@ pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> R
             command: Command::Get,
             key: Some(key),
             ..
-        } => match kvstore.lock().await.get(&Key::new(key)) {
+        } => match kvstore.lock().unwrap().get(&Key::new(key)) {
             Some(Value { value, version }) => Response {
                 err_code: ErrorCode::Success,
                 value: Some(value.to_vec()),
@@ -125,7 +123,7 @@ pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> R
             command: Command::Remove,
             key: Some(key),
             ..
-        } => match kvstore.lock().await.remove(&Key::new(key)) {
+        } => match kvstore.lock().unwrap().remove(&Key::new(key)) {
             Some(_) => Response::success(),
             None => Response::error(ErrorCode::NonExistentKey),
         },
@@ -141,6 +139,8 @@ pub async fn handle_request(kvstore: Arc<Mutex<KVStore>>, request: Request) -> R
 
 #[cfg(test)]
 mod test {
+    use std::sync::{Arc, Mutex};
+
     use super::*;
 
     #[tokio::test]
@@ -156,14 +156,14 @@ mod test {
                     value: Some(vec![i as u8]),
                     version: None,
                 };
-                let response = handle_request(inner, request).await;
+                let response = handle_request(inner, request);
                 eprintln!("{:?}", response);
             });
             handles.push(handle);
         }
         for handle in handles {
             handle.await.unwrap();
-            eprintln!("{:?}", kvstore.lock().await);
+            eprintln!("{:?}", kvstore.lock().unwrap());
         }
     }
 }
