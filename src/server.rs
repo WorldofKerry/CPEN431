@@ -8,7 +8,7 @@ use get_size::GetSize;
 use rayon::prelude::*;
 use std::sync::Mutex;
 use std::{io, net::Ipv4Addr, sync::Arc};
-use tokio::{net::UdpSocket};
+use tokio::net::UdpSocket;
 use tracing::{info, info_span, Instrument};
 
 pub type SyncKVStore = Arc<Mutex<KVStore>>;
@@ -67,8 +67,7 @@ impl Server {
         sock: &UdpSocket,
         kvstore: SyncKVStore,
         at_most_once_cache: SyncAtMostOnceCache,
-        ip: Ipv4Addr,
-        port: u16,
+        send_ip: Ipv4Addr,
     ) -> io::Result<()> {
         if self.last_time.elapsed().as_millis() >= 250 {
             self.last_time = std::time::Instant::now();
@@ -105,7 +104,7 @@ impl Server {
                     b"Error".to_vec()
                 }
             };
-            let socket = std::net::UdpSocket::bind((ip, 0)).unwrap();
+            let socket = std::net::UdpSocket::bind((send_ip, 0)).unwrap();
             socket.send_to(&msg, addr).unwrap();
         });
         Ok(())
@@ -120,11 +119,20 @@ impl Server {
         );
 
         loop {
-            self._listen_socket(&sock, self.kvstore.clone(), self.at_most_once_cache.clone(),
-            ip,
-            port
-        )
-                .await?;
+            match self
+                ._listen_socket(
+                    &sock,
+                    self.kvstore.clone(),
+                    self.at_most_once_cache.clone(),
+                    ip,
+                )
+                .await
+            {
+                Ok(_) => {}
+                Err(err) => {
+                    info!("{:?}", err);
+                }
+            }
         }
     }
 }
