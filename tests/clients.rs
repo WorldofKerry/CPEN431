@@ -41,6 +41,8 @@ fn client_runner(name: &str) {
         .map(|(ip, port)| ChildGuard {
             child: Command::new("cargo")
                 .arg("run")
+                .arg("--bin")
+                .arg("cpen431")
                 .arg("--release")
                 .arg("--")
                 .arg(ip.to_string())

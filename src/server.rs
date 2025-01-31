@@ -1,11 +1,10 @@
 use crate::expiring_hashmap::ExpiringHashMap;
-use crate::kv_store::{self, handle_request, KVStore};
+use crate::kv_store::{handle_request, KVStore};
 use crate::{
     application::{Deserialize, Response, Serialize},
     protocol::{MessageID, Msg, Protocol},
 };
 use get_size::GetSize;
-use rayon::prelude::*;
 use std::sync::Mutex;
 use std::{io, net::Ipv4Addr, sync::Arc};
 use tokio::net::UdpSocket;
