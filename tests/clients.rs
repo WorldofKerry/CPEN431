@@ -28,8 +28,10 @@ fn create_ips_ports(count: usize) -> (NamedTempFile, Vec<(Ipv4Addr, u16)>) {
 fn check_log_file(path: impl AsRef<std::path::Path>) {
     let log = std::fs::read_to_string(path).unwrap();
     let log = log.to_lowercase();
-    assert!(!log.contains("undecided"));
-    assert!(!log.contains("test_failed"));
+    assert!(!log.contains("UNDECIDED".to_lowercase().as_str()));
+    assert!(!log.contains("TEST_FAILED".to_lowercase().as_str()));
+    assert!(!log.contains("FAIL_IMMEDIATELY".to_lowercase().as_str()));
+    assert!(!log.contains("Server is down. Aborting!".to_lowercase().as_str()));
 }
 
 fn client_runner(name: &str) {
@@ -39,6 +41,8 @@ fn client_runner(name: &str) {
         .map(|(ip, port)| ChildGuard {
             child: Command::new("cargo")
                 .arg("run")
+                .arg("--bin")
+                .arg("cpen431")
                 .arg("--release")
                 .arg("--")
                 .arg(ip.to_string())

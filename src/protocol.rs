@@ -31,7 +31,7 @@ impl Protocol for Msg {
         self.write_to_bytes().unwrap()
     }    
     fn from_bytes(bytes: &[u8]) -> Result<Msg> {
-        let msg = Msg::parse_from_bytes(bytes).unwrap();
+        let msg = Msg::parse_from_bytes(bytes)?;
         match msg.checkSum == checksum(&msg.messageID, &msg.payload) {
             true => Ok(msg),
             false => Err(crate::application::ApplicationError::InvalidChecksum),

@@ -1,22 +1,17 @@
 import socket
+import time
 
-def interact_with_udp_server(ip, port, message):
-    # Create a UDP socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        # Send data to the server
-        print(f"Sending: {message}")
-        sock.sendto(message.encode(), (ip, port))
+def benchmark_udp_client(server_host='127.0.0.1', server_port=16401, num_requests=10000):
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    start_time = time.time()
 
-        # Receive response from the server
-        data, server = sock.recvfrom(1024)
-        print(f"Received: {data.decode()} from {server}")
-    finally:
-        sock.close()
+    for _ in range(num_requests):
+        client_socket.sendto(b'', (server_host, server_port))
+        _, _ = client_socket.recvfrom(1024)
 
-if __name__ == "__main__":
-    server_ip = "0.0.0.0"  # Replace with your server's IP if needed
-    server_port = 0       # Replace with your server's port
-    message = "Hello, UDP Server!"
+    throughput = num_requests / (time.time() - start_time)
+    print(f"Throughput = {throughput:.2f} requests/second")
+    client_socket.close()
 
-    interact_with_udp_server(server_ip, server_port, message)
+if __name__ == '__main__':
+    benchmark_udp_client()

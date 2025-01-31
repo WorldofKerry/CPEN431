@@ -1,4 +1,4 @@
-cargo-features = ["codegen-backend"]
+# cargo-features = ["codegen-backend"]
 
 [package]
 name = "cpen431"
@@ -13,6 +13,7 @@ protoc-bin-vendored = "3.1.0"
 anyhow = "1.0.95"
 clap = { version = "4.5.26", features = ["derive"] }
 crc32fast = "1.4.2"
+get-size = { version = "0.1.4", features = ["derive"] }
 hashlink = "0.10.0"
 hex = "0.4.3"
 local-ip-address = "0.6.3"
@@ -21,12 +22,16 @@ num-traits = "0.2.19"
 portpicker = "0.1.1"
 protobuf = "3.7.1"
 rand = "0.8.5"
+rayon = "1.10.0"
 tempfile = "3.15.0"
 thiserror = "2.0.11"
 tokio = { version = "1.43.0", features = ["full", "net"] }
+tracing = "0.1.41"
+tracing-appender = "0.2.3"
+tracing-subscriber = "0.3.19"
 
-[profile.dev]
-codegen-backend = "cranelift"
+# [profile.dev]
+# codegen-backend = "cranelift"
 
 [profile.release]
 debug = true
